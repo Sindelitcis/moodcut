@@ -1,0 +1,1 @@
+# Moodcut - entry point
