@@ -5,6 +5,7 @@ import sys
 from dotenv import load_dotenv
 
 from modules.downloader import download_vod
+from modules.transcriber import transcribe
 
 
 def main():
@@ -15,10 +16,20 @@ def main():
     url = sys.argv[1]
 
     load_dotenv()
-    print(f"[*] Baixando VOD: {url}", file=sys.stderr)
 
-    filepath = download_vod(url)
-    print(filepath)
+    # ── Download ─────────────────────────────────────────────────
+    print(f"[*] Baixando VOD: {url}", file=sys.stderr)
+    video_path = download_vod(url)
+    print(f"[*] Vídeo salvo em: {video_path}", file=sys.stderr)
+
+    # ── Transcribe ───────────────────────────────────────────────
+    result = transcribe(video_path)
+    n_segments = len(result["segments"])
+    print(
+        f"[OK] Transcrição: {n_segments} segmentos gerados",
+        file=sys.stderr,
+    )
+    print(video_path)
 
 
 if __name__ == "__main__":
