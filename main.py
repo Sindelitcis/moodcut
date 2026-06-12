@@ -4,6 +4,7 @@ import sys
 
 from dotenv import load_dotenv
 
+from modules.chunker import chunk_transcript
 from modules.downloader import download_vod
 from modules.transcriber import transcribe
 
@@ -29,6 +30,16 @@ def main():
         f"[OK] Transcrição: {n_segments} segmentos gerados",
         file=sys.stderr,
     )
+
+    # ── Chunk ────────────────────────────────────────────────────
+    chunks = chunk_transcript(result["segments"])
+    print(
+        f"[OK] Chunking: {len(chunks)} chunks gerados",
+        file=sys.stderr,
+    )
+    if chunks:
+        print(f"[Preview]\n{chunks[0]}", file=sys.stderr)
+
     print(video_path)
 
 
