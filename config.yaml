@@ -1,4 +1,4 @@
-whisper_model: medium
+whisper_model: turbo
 min_clip_duration: 480
 max_clip_duration: 0
 padding_start: 10
