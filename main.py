@@ -96,7 +96,7 @@ def main():
     try:
         t0 = time.time()
         if highlights:
-            clips = cut_clips(video_path, highlights)
+            clips = cut_clips(video_path, highlights, result["segments"])
             print(
                 f"[OK] Clipes: {len(clips)} gerados",
                 file=sys.stderr,
@@ -111,6 +111,46 @@ def main():
     except Exception as e:
         print(f"[ERRO] Falha ao cortar clipes: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # ── Thumbnail ────────────────────────────────────────────────
+    try:
+        from modules.thumbnailer import generate_thumbnail
+
+        t0 = time.time()
+        thumbs = []
+        for clip_path, seg in zip(clips, highlights):
+            titulo = seg.get("titulo_sugerido", "clip")
+            from modules.analyzer import _parse_timestamp
+
+            start_sec = _parse_timestamp(seg.get("inicio", "00:00:00"))
+            thumb = generate_thumbnail(clip_path, titulo, str(video_path), start_sec)
+            thumbs.append(thumb)
+            print(f"[*] Thumbnail: {thumb}", file=sys.stderr)
+        elapsed = time.time() - t0
+        print(f"[OK] Thumbnails concluídas em {elapsed:.1f}s", file=sys.stderr)
+    except Exception as e:
+        print(f"[ERRO] Falha nas thumbnails: {e}", file=sys.stderr)
+
+    # ── Upload YouTube ───────────────────────────────────────────
+    try:
+        from modules.uploader import upload_video
+
+        t0 = time.time()
+        urls = []
+        for clip_path, thumb, seg in zip(clips, thumbs, highlights):
+            titulo = seg.get("titulo_sugerido", "clip")
+            descricao = seg.get("descricao_youtube", "")
+            url = upload_video(clip_path, titulo, descricao, thumb)
+            urls.append(url)
+        elapsed = time.time() - t0
+        print(
+            f"[OK] Uploads concluídos em {elapsed:.1f}s",
+            file=sys.stderr,
+        )
+        for url in urls:
+            print(url)
+    except Exception as e:
+        print(f"[ERRO] Falha no upload: {e}", file=sys.stderr)
 
     # ── Summary ──────────────────────────────────────────────────
     total_elapsed = time.time() - total_start

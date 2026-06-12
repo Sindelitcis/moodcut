@@ -5,3 +5,7 @@ httpx
 python-dotenv
 pyyaml
 ffmpeg-python
+Pillow
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
