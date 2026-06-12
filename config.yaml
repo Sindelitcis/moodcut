@@ -1,4 +1,3 @@
 whisper_model: medium
-min_clip_duration: 30
-max_clip_duration: 180
-confidence_threshold: 0.75
+min_clip_duration: 480
+max_clip_duration: 0
