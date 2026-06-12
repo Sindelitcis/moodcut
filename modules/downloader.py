@@ -5,6 +5,25 @@ from pathlib import Path
 import yt_dlp
 
 
+def get_vod_metadata(url: str) -> dict:
+    """Extract title, channel and URL from a VOD without downloading.
+
+    Args:
+        url: The VOD URL.
+
+    Returns:
+        Dict with ``"title"``, ``"channel"`` and ``"url"`` keys.
+    """
+    ydl_opts = {"quiet": True, "no_warnings": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        return {
+            "title": info.get("title", ""),
+            "channel": info.get("channel") or info.get("uploader", ""),
+            "url": url,
+        }
+
+
 def download_vod(url: str) -> str:
     """Download the best available MP4 VOD from a URL (Twitch, YouTube, etc.).
 

@@ -4,8 +4,9 @@ import sys
 
 from dotenv import load_dotenv
 
+from modules.analyzer import analyze
 from modules.chunker import chunk_transcript
-from modules.downloader import download_vod
+from modules.downloader import download_vod, get_vod_metadata
 from modules.transcriber import transcribe
 
 
@@ -18,8 +19,20 @@ def main():
 
     load_dotenv()
 
+    # ── Metadata ─────────────────────────────────────────────────
+    print(f"[*] Extraindo metadados de: {url}", file=sys.stderr)
+    metadata = get_vod_metadata(url)
+    print(
+        f"    Título: {metadata['title']}",
+        file=sys.stderr,
+    )
+    print(
+        f"    Canal:  {metadata['channel']}",
+        file=sys.stderr,
+    )
+
     # ── Download ─────────────────────────────────────────────────
-    print(f"[*] Baixando VOD: {url}", file=sys.stderr)
+    print(f"[*] Baixando VOD...", file=sys.stderr)
     video_path = download_vod(url)
     print(f"[*] Vídeo salvo em: {video_path}", file=sys.stderr)
 
@@ -39,6 +52,13 @@ def main():
     )
     if chunks:
         print(f"[Preview]\n{chunks[0]}", file=sys.stderr)
+
+    # ── Analyze ──────────────────────────────────────────────────
+    highlights = analyze(chunks, metadata)
+    print(
+        f"[OK] Análise: {len(highlights)} segmento(s) aprovado(s)",
+        file=sys.stderr,
+    )
 
     print(video_path)
 
