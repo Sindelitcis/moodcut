@@ -52,7 +52,8 @@ def generate_thumbnail(
         tmp = Path(tmp_dir)
 
         # ── Extract 10 frames from the VOD (1 every 6s) ───────
-        durations = [str(start_sec + offset) for offset in range(0, 60, 6)]
+        sample_start = start_sec + 180  # pula os primeiros 3 minutos do segmento
+        durations = [str(sample_start + offset) for offset in range(0, 60, 6)]
         frame_files: list[Path] = []
         for i, ts in enumerate(durations):
             out = tmp / f"frame_{i:04d}.jpg"
