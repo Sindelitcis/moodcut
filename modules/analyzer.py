@@ -10,7 +10,7 @@ import httpx
 import yaml
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
-MODEL = "deepseek-chat"
+MODEL = "deepseek-v4-flash"
 REQUEST_TIMEOUT = 120
 
 
