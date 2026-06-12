@@ -1,3 +1,5 @@
 whisper_model: medium
 min_clip_duration: 480
 max_clip_duration: 0
+padding_start: 10
+padding_end: 8
