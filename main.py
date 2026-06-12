@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from modules.analyzer import analyze
 from modules.chunker import chunk_transcript
+from modules.clipper import cut_clips
 from modules.downloader import download_vod, get_vod_metadata
 from modules.transcriber import transcribe
 
@@ -59,6 +60,16 @@ def main():
         f"[OK] Análise: {len(highlights)} segmento(s) aprovado(s)",
         file=sys.stderr,
     )
+
+    # ── Clip ─────────────────────────────────────────────────────
+    if highlights:
+        clips = cut_clips(video_path, highlights)
+        print(
+            f"[OK] Clipes: {len(clips)} gerados",
+            file=sys.stderr,
+        )
+    else:
+        print("[OK] Clipes: nenhum segmento aprovado para corte", file=sys.stderr)
 
     print(video_path)
 
