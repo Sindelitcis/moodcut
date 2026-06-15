@@ -4,6 +4,14 @@
 
 canais:
   1:
-    nome: "Canal RPM"
+    nome: "Sind"
+    senha: "3dnaonivelado"
   2:
-    nome: "Canal do Kino"
+    nome: "Kino"
+    senha: ""
+  3:
+    nome: "Davi"
+    senha: ""
+  4:
+    nome: "Viana"
+    senha: ""

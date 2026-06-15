@@ -28,7 +28,63 @@ app = FastAPI(title="Moodcut")
 _process: asyncio.subprocess.Process | None = None
 _logs: list[str] = []
 _running: bool = False
-_stdin_pipe: bool = False   # True when process expects stdin (auth flow)
+_stdin_pipe: bool = False        # True when process expects stdin (auth flow)
+_current_channel: int = 0        # channel currently (or last) running
+
+# ── Noise filter ────────────────────────────────────────────────────────────
+# Library output that is always harmless and adds no value in the web terminal.
+_NOISE = frozenset([
+    "torchcodec is not installed correctly",
+    "built-in audio decoding will fail",
+    "use audio preloaded in-memory",
+    "fix torchcodec installation",
+    "Could not load libtorchcodec",
+    "[start of libtorchcodec loading traceback]",
+    "[end of libtorchcodec loading traceback]",
+    "libtorchcodec_core",
+    "FFmpeg version 4: Could not find module",
+    "FFmpeg version 5: Could not find module",
+    "FFmpeg version 6: Could not find module",
+    "FFmpeg version 7: Could not find module",
+    "Another runtime dependency; see exceptions below",
+    "The following exceptions were raised as we tried to load",
+    "constructor syntax.",
+    "Lightning automatically upgraded your loaded checkpoint",
+    "To apply the upgrade to your files permanently",
+    "TensorFloat-32 (TF32) has been disabled",
+    "reproducibility issues and lower accuracy",
+    "It can be re-enabled by calling",
+    ">>> import torch",
+    ">>> torch.backends",
+    "ReproducibilityWarning",
+    "  warnings.warn(",
+    "Likely causes:",
+    "versions 4, 5, 6 and 7.",
+    "PyTorch version (",
+    "version compatibility",
+])
+
+
+def _is_noisy(line: str) -> bool:
+    return any(s in line for s in _NOISE)
+
+
+def _get_channel_cfg(channel: int) -> dict:
+    """Return the yaml config dict for *channel*, or {} if not found."""
+    try:
+        with open(ROOT / "channels.yaml", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return data.get("canais", {}).get(channel, {})
+    except Exception:
+        return {}
+
+
+def _check_password(channel: int, provided: str) -> str | None:
+    """Return None if password is OK, or an error string if it is wrong."""
+    expected = _get_channel_cfg(channel).get("senha", "")
+    if expected and provided != expected:
+        return "Senha incorreta para este canal."
+    return None
 
 
 # ── Models ─────────────────────────────────────────────────────────────────
@@ -41,6 +97,7 @@ class RunRequest(BaseModel):
     skip_thumb: bool = False
     only_thumb: bool = False
     only_upload: bool = False
+    password: str = ""
 
 
 class AuthRequest(BaseModel):
@@ -51,12 +108,20 @@ class StdinRequest(BaseModel):
     text: str
 
 
+class StopRequest(BaseModel):
+    channel: int = 0
+    password: str = ""
+
+
 # ── Routes ─────────────────────────────────────────────────────────────────
 
 
 @app.get("/")
 async def index():
-    return FileResponse(Path(__file__).parent / "index.html")
+    return FileResponse(
+        Path(__file__).parent / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/api/channels")
@@ -71,7 +136,45 @@ async def api_channels():
 
 @app.get("/api/status")
 async def api_status():
-    return {"running": _running, "log_lines": len(_logs)}
+    return {"running": _running, "log_lines": len(_logs), "channel": _current_channel}
+
+
+@app.get("/api/channel-status")
+async def api_channel_status():
+    """Return auth token status for every channel in channels.yaml."""
+    try:
+        with open(ROOT / "channels.yaml", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        canais = data.get("canais", {})
+    except FileNotFoundError:
+        return []
+
+    token_dir = ROOT / "auth"
+    result = []
+    for ch_id, ch_data in canais.items():
+        token_path = token_dir / f"token_canal_{ch_id}.json"
+        if not token_path.exists():
+            status = "sem_token"
+        else:
+            try:
+                import json as _json
+                raw = _json.loads(token_path.read_text(encoding="utf-8"))
+                # A refresh_token means credentials can self-renew
+                if raw.get("refresh_token"):
+                    status = "ok"
+                elif raw.get("token"):
+                    status = "sem_refresh"
+                else:
+                    status = "invalido"
+            except Exception:
+                status = "invalido"
+        result.append({
+            "id": ch_id,
+            "nome": ch_data.get("nome", f"Canal {ch_id}"),
+            "status": status,
+            "has_password": bool(ch_data.get("senha")),
+        })
+    return result
 
 
 @app.get("/api/logs")
@@ -108,9 +211,13 @@ async def serve_thumb(filename: str):
 
 @app.post("/api/run")
 async def api_run(req: RunRequest):
-    global _running, _logs, _stdin_pipe
+    global _running, _logs, _stdin_pipe, _current_channel
     if _running:
         return {"error": "Pipeline já está rodando"}
+
+    err = _check_password(req.channel, req.password)
+    if err:
+        return {"error": err}
 
     cmd = ["py", "-3.12", "main.py", req.url, f"--channel={req.channel}"]
     if req.skip_upload:
@@ -126,6 +233,7 @@ async def api_run(req: RunRequest):
     # can't race and send __DONE__ before the process starts.
     _running = True
     _stdin_pipe = False
+    _current_channel = req.channel
     _logs = [f"$ {' '.join(cmd)}"]
     asyncio.create_task(_run_pipeline(cmd, with_stdin=False))
     return {"ok": True, "cmd": " ".join(cmd)}
@@ -161,8 +269,12 @@ async def api_stdin(req: StdinRequest):
 
 
 @app.post("/api/stop")
-async def api_stop():
+async def api_stop(req: StopRequest = StopRequest()):
     global _process
+    if req.channel:
+        err = _check_password(req.channel, req.password)
+        if err:
+            return {"error": err}
     if _process and _process.returncode is None:
         _process.terminate()
         return {"ok": True}
@@ -210,10 +322,13 @@ async def api_stream(from_line: int = 0):
 async def _run_pipeline(cmd: list[str], *, with_stdin: bool = False) -> None:
     global _process, _running
 
-    # Force UTF-8 output from the child Python process on Windows.
+    # Force unbuffered + UTF-8 output from the child Python process on Windows.
+    # PYTHONUNBUFFERED=1 is equivalent to -u: disables block-buffering on pipes
+    # so every print() appears immediately without waiting for the buffer to fill.
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUNBUFFERED"] = "1"
 
     try:
         _process = await asyncio.create_subprocess_exec(
@@ -228,7 +343,8 @@ async def _run_pipeline(cmd: list[str], *, with_stdin: bool = False) -> None:
 
         async for raw in _process.stdout:
             line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
-            _logs.append(line)
+            if not _is_noisy(line):
+                _logs.append(line)
 
         await _process.wait()
         code = _process.returncode

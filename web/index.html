@@ -376,6 +376,14 @@
     .terminal::-webkit-scrollbar-track { background: transparent; }
     .terminal::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
 
+    .terminal a {
+      color: var(--blue);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      word-break: break-all;
+    }
+    .terminal a:hover { color: #93c5fd; }
+
     .term-placeholder {
       color: var(--text-muted);
       font-style: italic;
@@ -393,6 +401,32 @@
     .log-info  { color: var(--blue); }
     .log-done  { color: var(--green); font-weight: 500; }
     .log-sep   { color: #444; }
+    .log-lib   { color: #3a3a3a; font-size: 11px; }   /* dim library output */
+
+    /* Stage progress cards */
+    .stage-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0 6px;
+      padding: 9px 14px;
+      background: #161616;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: #ccc;
+      letter-spacing: 0.3px;
+    }
+
+    .stage-card.done {
+      border-left-color: var(--green);
+      color: var(--green);
+      background: #0d1a0d;
+    }
+
+    .stage-card .stage-icon { font-size: 15px; }
 
     /* ── Thumbnails section ──────────────────────────────────── */
     .thumbs-section {
@@ -503,73 +537,148 @@
 
     .thumb-card:hover .thumb-overlay { opacity: 1; }
 
-    /* ── Auth section ───────────────────────────────────────── */
-    .auth-row {
+    /* ── Tabs ───────────────────────────────────────────────── */
+    .tab-bar {
       display: flex;
-      gap: 8px;
-      align-items: center;
+      gap: 4px;
+      padding: 0 0 16px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .auth-row input[type="number"] {
-      width: 64px;
-      flex-shrink: 0;
-      text-align: center;
-    }
-
-    /* ── Stdin bar (appears when auth needs URL paste) ───────── */
-    .stdin-bar {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 16px;
-      background: #1a1200;
-      border-bottom: 1px solid #4a3000;
-      animation: slideDown 0.2s ease;
-    }
-
-    .stdin-bar.visible { display: flex; }
-
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .stdin-bar label {
-      font-size: 11px;
+    .tab-btn {
+      flex: 1;
+      padding: 7px 8px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 12px;
       font-weight: 600;
-      color: var(--yellow);
-      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.15s;
       letter-spacing: 0.3px;
     }
 
-    .stdin-bar input[type="text"] {
-      flex: 1;
-      background: #110e00;
-      border-color: #4a3000;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
+    .tab-btn:hover { border-color: var(--border-light); color: var(--text); }
+    .tab-btn.active {
+      background: var(--accent-dim);
+      border-color: var(--accent-glow);
+      color: var(--accent);
     }
 
-    .stdin-bar input[type="text"]:focus {
-      border-color: var(--yellow);
-      box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
+    .tab-panel { display: none; flex-direction: column; gap: 20px; }
+    .tab-panel.active { display: flex; }
+
+    /* ── Password modal ─────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
     }
 
-    .btn-send {
-      padding: 8px 14px;
-      background: var(--yellow);
-      color: #000;
-      border: none;
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 24px;
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+
+    .modal-box h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .modal-box input[type="password"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      padding: 9px 12px;
+      outline: none;
+    }
+
+    .modal-box input[type="password"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .modal-actions button {
+      padding: 8px 16px;
       border-radius: 7px;
       font-family: inherit;
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.15s;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-muted);
+      transition: all 0.15s;
     }
 
-    .btn-send:hover { background: #e6ab00; }
+    .modal-actions button:hover { border-color: var(--border-light); color: var(--text); }
+
+    .modal-actions .btn-confirm {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .modal-actions .btn-confirm:hover { background: #e03d00; }
+
+    /* ── Channel status cards ───────────────────────────────── */
+    .ch-status-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .ch-status-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .ch-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .ch-status-dot.ok         { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .ch-status-dot.sem_token  { background: var(--red); }
+    .ch-status-dot.invalido   { background: var(--red); }
+    .ch-status-dot.sem_refresh { background: var(--yellow); }
+
+    .ch-status-info { flex: 1; }
+    .ch-status-name { font-size: 13px; font-weight: 500; }
+    .ch-status-label { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+    .ch-status-lock {
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
 
     /* ── Responsive ──────────────────────────────────────────── */
     @media (max-width: 700px) {
@@ -600,90 +709,109 @@
   <!-- Controls -->
   <aside class="controls">
 
-    <!-- URL -->
-    <div class="field">
-      <label class="field-label">URL do VOD</label>
-      <input
-        type="url"
-        id="urlInput"
-        placeholder="https://www.twitch.tv/videos/…"
-        autocomplete="off"
-        spellcheck="false"
-      >
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="pipeline">▶ Pipeline</button>
+      <button class="tab-btn"        data-tab="status">● Status</button>
     </div>
 
-    <!-- Channel -->
-    <div class="field">
-      <label class="field-label">Canal</label>
-      <div class="select-wrapper">
-        <select id="channelSelect">
-          <option value="1">Canal 1</option>
-        </select>
+    <!-- ── Tab: Pipeline ── -->
+    <div class="tab-panel active" id="tab-pipeline">
+
+      <!-- URL -->
+      <div class="field">
+        <label class="field-label">URL do VOD</label>
+        <input
+          type="url"
+          id="urlInput"
+          placeholder="https://www.twitch.tv/videos/…"
+          autocomplete="off"
+          spellcheck="false"
+        >
       </div>
-    </div>
 
-    <div class="divider"></div>
-
-    <!-- Flags -->
-    <div class="field">
-      <label class="field-label">Opções</label>
-      <div class="checks">
-
-        <label class="check-item">
-          <input type="checkbox" id="skipUpload">
-          <span>Skip Upload</span>
-          <small>--skip-upload</small>
-        </label>
-
-        <label class="check-item">
-          <input type="checkbox" id="skipThumb">
-          <span>Skip Thumbnail</span>
-          <small>--skip-thumb</small>
-        </label>
-
-        <label class="check-item" id="itemOnlyThumb">
-          <input type="checkbox" id="onlyThumb">
-          <span>Só Thumbnails</span>
-          <small>--only-thumb</small>
-        </label>
-
-        <label class="check-item" id="itemOnlyUpload">
-          <input type="checkbox" id="onlyUpload">
-          <span>Só Upload</span>
-          <small>--only-upload</small>
-        </label>
-
+      <!-- Channel -->
+      <div class="field">
+        <label class="field-label">Canal</label>
+        <div class="select-wrapper">
+          <select id="channelSelect">
+            <option value="1">Canal 1</option>
+          </select>
+        </div>
       </div>
-    </div>
 
-    <div class="divider"></div>
+      <div class="divider"></div>
 
-    <!-- Auth new channel -->
-    <div class="field">
-      <label class="field-label">Autorizar Canal</label>
-      <div class="auth-row">
-        <input type="number" id="authChannel" value="3" min="1" max="99" title="Número do canal">
-        <button class="btn btn-secondary" id="authBtn" style="flex:1">🔑 Autorizar Canal</button>
+      <!-- Flags -->
+      <div class="field">
+        <label class="field-label">Opções</label>
+        <div class="checks">
+          <label class="check-item">
+            <input type="checkbox" id="skipUpload">
+            <span>Skip Upload</span>
+            <small>--skip-upload</small>
+          </label>
+          <label class="check-item">
+            <input type="checkbox" id="skipThumb">
+            <span>Skip Thumbnail</span>
+            <small>--skip-thumb</small>
+          </label>
+          <label class="check-item">
+            <input type="checkbox" id="onlyThumb">
+            <span>Só Thumbnails</span>
+            <small>--only-thumb</small>
+          </label>
+          <label class="check-item">
+            <input type="checkbox" id="onlyUpload">
+            <span>Só Upload</span>
+            <small>--only-upload</small>
+          </label>
+        </div>
       </div>
-      <small style="color:var(--text-muted);font-size:10px;margin-top:2px">
-        Abre o fluxo OAuth — cole a URL do redirect no terminal que aparecer abaixo.
+
+      <div class="divider"></div>
+
+      <!-- Actions -->
+      <div class="btn-group">
+        <button class="btn btn-primary" id="runBtn" disabled>
+          ▶&nbsp; Rodar Pipeline
+        </button>
+        <button class="btn btn-danger" id="stopBtn" disabled>
+          ■&nbsp; Parar
+        </button>
+        <button class="btn btn-secondary" id="thumbsBtn" type="button">
+          🖼&nbsp; Ver Thumbnails
+        </button>
+      </div>
+
+    </div><!-- /tab-pipeline -->
+
+    <!-- ── Tab: Status ── -->
+    <div class="tab-panel" id="tab-status">
+
+      <div class="field">
+        <label class="field-label">Canais</label>
+        <div class="ch-status-list" id="chStatusList">
+          <span style="color:var(--text-muted);font-size:12px">Carregando…</span>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="checkStatusBtn">
+          🔍&nbsp; Verificar no Terminal
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <small style="color:var(--text-muted);font-size:10px;line-height:1.6">
+        Para autorizar um canal, rode no terminal do PC:<br>
+        <code style="color:#888">py -3.12 main.py --auth --channel=N</code><br><br>
+        Para adicionar senha a um canal, edite <code style="color:#888">channels.yaml</code>
+        e adicione <code style="color:#888">senha: "suasenha"</code>.
       </small>
-    </div>
 
-    <div class="divider"></div>
-
-    <!-- Actions -->
-    <div class="btn-group">
-      <button class="btn btn-primary" id="runBtn" disabled>
-        ▶&nbsp; Rodar Pipeline
-      </button>
-      <button class="btn btn-danger" id="stopBtn" disabled>
-        ■&nbsp; Parar
-      </button>
-      <button class="btn btn-secondary" id="thumbsBtn" type="button">
-        🖼&nbsp; Ver Thumbnails
-      </button>
-    </div>
+    </div><!-- /tab-status -->
 
   </aside>
 
@@ -700,18 +828,23 @@
       </div>
     </div>
 
-    <!-- Stdin bar: shown when auth flow asks for redirect URL -->
-    <div class="stdin-bar" id="stdinBar">
-      <label>🔑 Cole a URL do redirect:</label>
-      <input type="text" id="stdinInput" placeholder="https://localhost/?code=4/0A..." spellcheck="false">
-      <button class="btn-send" id="stdinSend">Enviar →</button>
-    </div>
-
     <div class="terminal" id="terminal">
       <span class="term-placeholder">Pipeline inativo. Configure uma URL e clique em Rodar.</span>
     </div>
   </div>
 
+</div>
+
+<!-- ── Password modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="pwModal" style="display:none">
+  <div class="modal-box">
+    <h3 id="pwTitle">Senha do Canal</h3>
+    <input type="password" id="pwInput" placeholder="Digite a senha…" autocomplete="off">
+    <div class="modal-actions">
+      <button id="pwCancel">Cancelar</button>
+      <button class="btn-confirm" id="pwConfirm">Confirmar</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── Thumbnails ───────────────────────────────────────── -->
@@ -730,8 +863,9 @@
 
 <script>
   // ── State ──────────────────────────────────────────────────────────────
-  let isRunning  = false;
-  let streamCtrl = null; // AbortController for the SSE fetch
+  let isRunning      = false;
+  let streamCtrl     = null;   // AbortController for the SSE fetch
+  let _currentCh     = 0;      // channel currently running (for stop password)
 
   // ── DOM refs ───────────────────────────────────────────────────────────
   const urlInput      = document.getElementById('urlInput');
@@ -750,11 +884,47 @@
   const thumbsSection = document.getElementById('thumbsSection');
   const thumbsGrid    = document.getElementById('thumbsGrid');
   const thumbsCount   = document.getElementById('thumbsCount');
-  const authBtn       = document.getElementById('authBtn');
-  const authChannel   = document.getElementById('authChannel');
-  const stdinBar      = document.getElementById('stdinBar');
-  const stdinInput    = document.getElementById('stdinInput');
-  const stdinSend     = document.getElementById('stdinSend');
+  const pwModal       = document.getElementById('pwModal');
+  const pwTitle       = document.getElementById('pwTitle');
+  const pwInput       = document.getElementById('pwInput');
+  const pwConfirm     = document.getElementById('pwConfirm');
+  const pwCancel      = document.getElementById('pwCancel');
+  const chStatusList  = document.getElementById('chStatusList');
+
+  // ── Password modal (Promise-based) ────────────────────────────────────
+  function askPassword(title) {
+    return new Promise((resolve, reject) => {
+      pwTitle.textContent = title;
+      pwInput.value = '';
+      pwModal.style.display = 'flex';
+      setTimeout(() => pwInput.focus(), 50);
+
+      const confirm = () => { cleanup(); pwModal.style.display = 'none'; resolve(pwInput.value); };
+      const cancel  = () => { cleanup(); pwModal.style.display = 'none'; reject(); };
+      const onKey   = e => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') cancel(); };
+
+      function cleanup() {
+        pwConfirm.removeEventListener('click', confirm);
+        pwCancel.removeEventListener('click', cancel);
+        pwInput.removeEventListener('keydown', onKey);
+      }
+
+      pwConfirm.addEventListener('click', confirm);
+      pwCancel.addEventListener('click', cancel);
+      pwInput.addEventListener('keydown', onKey);
+    });
+  }
+
+  // ── Tabs ───────────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'status') loadChannelStatus();
+    });
+  });
 
   // ── Init ───────────────────────────────────────────────────────────────
   async function init() {
@@ -762,19 +932,16 @@
     checkStatus();
     loadThumbs();
     urlInput.addEventListener('input', updateRunBtn);
-    urlInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') runBtn.click();
-    });
-    // Mutually exclusive only-* checkboxes
-    onlyThumb.addEventListener('change', () => { if (onlyThumb.checked) onlyUpload.checked = false; });
-    onlyUpload.addEventListener('change', () => { if (onlyUpload.checked) onlyThumb.checked = false; });
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runBtn.click(); });
+    onlyThumb.addEventListener('change',  () => { if (onlyThumb.checked)  onlyUpload.checked = false; });
+    onlyUpload.addEventListener('change', () => { if (onlyUpload.checked) onlyThumb.checked  = false; });
   }
 
   function updateRunBtn() {
     runBtn.disabled = isRunning || !urlInput.value.trim();
   }
 
-  // ── Load channels from channels.yaml via API ───────────────────────────
+  // ── Load channels ──────────────────────────────────────────────────────
   async function loadChannels() {
     try {
       const res = await fetch('/api/channels');
@@ -786,10 +953,55 @@
         opt.textContent = `${info.nome} (Canal ${id})`;
         channelSelect.appendChild(opt);
       }
+    } catch (e) { console.warn('Erro ao carregar canais:', e); }
+  }
+
+  // ── Channel status tab ─────────────────────────────────────────────────
+  async function loadChannelStatus() {
+    chStatusList.innerHTML = '<span style="color:var(--text-muted);font-size:12px">Verificando…</span>';
+    try {
+      const res  = await fetch('/api/channel-status');
+      const list = await res.json();
+      chStatusList.innerHTML = '';
+      const labels = { ok: 'Autorizado ✓', sem_token: 'Sem token — rode --auth', invalido: 'Token inválido', sem_refresh: 'Token sem refresh' };
+      for (const ch of list) {
+        const card = document.createElement('div');
+        card.className = 'ch-status-card';
+        card.innerHTML = `
+          <div class="ch-status-dot ${ch.status}"></div>
+          <div class="ch-status-info">
+            <div class="ch-status-name">Canal ${ch.id} — ${ch.nome}</div>
+            <div class="ch-status-label">${labels[ch.status] || ch.status}</div>
+          </div>
+          ${ch.has_password ? '<span class="ch-status-lock" title="Senha configurada">🔒</span>' : ''}
+        `;
+        chStatusList.appendChild(card);
+      }
     } catch (e) {
-      console.warn('Erro ao carregar canais:', e);
+      chStatusList.innerHTML = '<span style="color:var(--red);font-size:12px">Erro ao carregar status.</span>';
     }
   }
+
+  // Verify in terminal button
+  document.getElementById('checkStatusBtn').addEventListener('click', async () => {
+    terminal.innerHTML = '';
+    logLineTotal = 0;
+    appendLog('$ Verificando status dos canais…');
+    appendLog('');
+    try {
+      const res  = await fetch('/api/channel-status');
+      const list = await res.json();
+      const labels = { ok: '✓ Autorizado', sem_token: '✗ Sem token (rode --auth)', invalido: '✗ Token inválido', sem_refresh: '⚠ Token sem refresh' };
+      for (const ch of list) {
+        appendLog(`  [Canal ${ch.id}] ${ch.nome}`);
+        appendLog(`    ${labels[ch.status] || ch.status}${ch.has_password ? '  🔒' : ''}`);
+        appendLog('');
+      }
+      appendLog('[OK] Verificação concluída.');
+    } catch (e) {
+      appendLog('[ERRO] Não foi possível verificar: ' + e.message);
+    }
+  });
 
   // ── Resume stream if already running ───────────────────────────────────
   async function checkStatus() {
@@ -797,8 +1009,8 @@
       const res  = await fetch('/api/status');
       const data = await res.json();
       if (data.running) {
+        _currentCh = data.channel || 0;
         setRunning(true);
-        // Load existing logs then stream from that position
         const logRes  = await fetch('/api/logs');
         const logData = await logRes.json();
         terminal.innerHTML = '';
@@ -813,25 +1025,34 @@
     const url = urlInput.value.trim();
     if (!url || isRunning) return;
 
+    const ch = parseInt(channelSelect.value, 10);
+    let password = '';
+    try {
+      // Ask for password — modal resolves with the typed value (may be empty)
+      password = await askPassword(`Senha do Canal ${ch}`);
+    } catch {
+      return; // user cancelled
+    }
+
     const body = {
       url,
-      channel:     parseInt(channelSelect.value, 10),
+      channel:     ch,
       skip_upload: skipUpload.checked,
       skip_thumb:  skipThumb.checked,
       only_thumb:  onlyThumb.checked,
       only_upload: onlyUpload.checked,
+      password,
     };
 
     try {
-      const res  = await fetch('/api/run', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
-      });
+      const res  = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.error) { alert(data.error); return; }
 
+      _currentCh = ch;
       terminal.innerHTML = '';
+      logLineTotal = 0;
+      _seenStages.clear();
       setRunning(true);
       startStream(0);
     } catch (e) {
@@ -841,51 +1062,18 @@
 
   // ── Stop pipeline ───────────────────────────────────────────────────────
   stopBtn.addEventListener('click', async () => {
+    let password = '';
     try {
-      await fetch('/api/stop', { method: 'POST' });
+      password = await askPassword(`Senha do Canal ${_currentCh || '?'} para parar`);
+    } catch {
+      return; // cancelled
+    }
+    try {
+      const res  = await fetch('/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: _currentCh, password }) });
+      const data = await res.json();
+      if (data.error) alert(data.error);
     } catch (e) { /* ignore */ }
   });
-
-  // ── Authorize new channel ───────────────────────────────────────────────
-  authBtn.addEventListener('click', async () => {
-    if (isRunning) { alert('Aguarde o pipeline atual terminar.'); return; }
-    const ch = parseInt(authChannel.value, 10);
-    if (!ch || ch < 1) { alert('Número de canal inválido.'); return; }
-    try {
-      const res  = await fetch('/api/auth', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ channel: ch }),
-      });
-      const data = await res.json();
-      if (data.error) { alert(data.error); return; }
-      terminal.innerHTML = '';
-      setRunning(true);
-      startStream(0);
-    } catch (e) {
-      alert('Erro ao iniciar auth: ' + e.message);
-    }
-  });
-
-  // ── Send redirect URL to process stdin ──────────────────────────────────
-  async function sendStdin() {
-    const text = stdinInput.value.trim();
-    if (!text) return;
-    try {
-      await fetch('/api/stdin', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text }),
-      });
-      stdinInput.value = '';
-      stdinBar.classList.remove('visible');
-    } catch (e) {
-      alert('Erro ao enviar: ' + e.message);
-    }
-  }
-
-  stdinSend.addEventListener('click', sendStdin);
-  stdinInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendStdin(); });
 
   // ── Clear terminal ──────────────────────────────────────────────────────
   document.getElementById('clearBtn').addEventListener('click', () => {
@@ -912,10 +1100,7 @@
     streamCtrl = new AbortController();
 
     try {
-      const resp = await fetch(`/api/stream?from_line=${fromLine}`, {
-        signal: streamCtrl.signal,
-      });
-
+      const resp = await fetch(`/api/stream?from_line=${fromLine}`, { signal: streamCtrl.signal });
       const reader  = resp.body.getReader();
       const decoder = new TextDecoder();
       let   buffer  = '';
@@ -923,19 +1108,14 @@
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // keep incomplete line
-
+        buffer = lines.pop();
         for (const raw of lines) {
           if (!raw.startsWith('data: ')) continue;
           const text = raw.slice(6);
-          if (text === '__DONE__') {
-            onPipelineComplete();
-            return;
-          }
-          if (text === '') continue; // blank keepalive data
+          if (text === '__DONE__') { onPipelineComplete(); return; }
+          if (text === '') continue;
           appendLog(text);
         }
       }
@@ -949,7 +1129,6 @@
 
   function onPipelineComplete() {
     setRunning(false);
-    stdinBar.classList.remove('visible');
     loadThumbs();
     thumbsSection.classList.add('visible');
   }
@@ -957,36 +1136,58 @@
   // ── State helpers ───────────────────────────────────────────────────────
   function setRunning(running) {
     isRunning = running;
-
     statusBadge.classList.toggle('running', running);
     statusText.textContent = running ? 'Rodando' : 'Idle';
-
     runBtn.disabled  = running || !urlInput.value.trim();
     stopBtn.disabled = !running;
-    authBtn.disabled = running;
-    if (!running) stdinBar.classList.remove('visible');
+  }
+
+  // ── Stage cards ─────────────────────────────────────────────────────────
+  const STAGE_TRIGGERS = [
+    { re: /\[download\]/,                                     icon: '🔽', label: 'Baixando VOD…',                             key: 'dl',    done: false },
+    { re: /\[OK\] Download conclu/,                           icon: '✅', label: 'Download concluído',                        key: 'dl-ok', done: true  },
+    { re: /Performing voice activity|whisperx\.vads|whisperx\.asr.*INFO/, icon: '🎙️', label: 'Transcrevendo — pode demorar vários minutos…', key: 'tr', done: false },
+    { re: /\[OK\].*[Tt]ranscri/,                              icon: '✅', label: 'Transcrição concluída',                     key: 'tr-ok', done: true  },
+    { re: /Passagem 1.*Mapeando/,                             icon: '🔍', label: 'Analisando tópicos (Passagem 1)…',          key: 'an1',   done: false },
+    { re: /Passagem 2.*Enriquecendo/,                         icon: '✍️', label: 'Enriquecendo metadados (Passagem 2)…',      key: 'an2',   done: false },
+    { re: /\[OK\].*[Aa]nális/,                                icon: '✅', label: 'Análise concluída',                         key: 'an-ok', done: true  },
+    { re: /Gerando clipe|Cortando|ffmpeg.*clipe/i,            icon: '✂️', label: 'Cortando clipes…',                          key: 'clip',  done: false },
+    { re: /[Tt]humbnail|thumbnailer/,                         icon: '🖼️', label: 'Gerando thumbnails…',                       key: 'thumb', done: false },
+    { re: /\[YouTube\]|Enviando.*YouTube/i,                   icon: '☁️', label: 'Fazendo upload…',                           key: 'up',    done: false },
+  ];
+
+  const _seenStages = new Set();
+
+  function checkStage(text) {
+    for (const s of STAGE_TRIGGERS) {
+      if (!_seenStages.has(s.key) && s.re.test(text)) {
+        _seenStages.add(s.key);
+        const card = document.createElement('div');
+        card.className = 'stage-card' + (s.done ? ' done' : '');
+        card.innerHTML = `<span class="stage-icon">${s.icon}</span><span>${s.label}</span>`;
+        terminal.appendChild(card);
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Terminal rendering ──────────────────────────────────────────────────
   let logLineTotal = 0;
 
   function appendLog(text) {
-    // Remove placeholder
     const placeholder = terminal.querySelector('.term-placeholder');
     if (placeholder) placeholder.remove();
 
     const atBottom =
       terminal.scrollHeight - terminal.clientHeight <= terminal.scrollTop + 60;
 
-    // Show stdin bar when the auth flow asks for the redirect URL
-    if (text.includes('Cole a URL completa aqui')) {
-      stdinBar.classList.add('visible');
-      setTimeout(() => stdinInput.focus(), 50);
-    }
+    // Inject stage card before the triggering line (once per stage key)
+    checkStage(text);
 
     const span = document.createElement('span');
     span.className = 'log-line ' + classifyLine(text);
-    span.textContent = text + '\n';
+    renderLine(span, text);
     terminal.appendChild(span);
 
     logLineTotal++;
@@ -995,14 +1196,35 @@
     if (atBottom) terminal.scrollTop = terminal.scrollHeight;
   }
 
+  // Render text into a span, turning any https:// URLs into clickable links.
+  function renderLine(span, text) {
+    const urlRe = /(https?:\/\/\S+)/g;
+    let last = 0, m;
+    urlRe.lastIndex = 0;
+    while ((m = urlRe.exec(text)) !== null) {
+      if (m.index > last)
+        span.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const a = document.createElement('a');
+      a.href = m[1];
+      a.textContent = m[1];
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      span.appendChild(a);
+      last = m.index + m[1].length;
+    }
+    span.appendChild(document.createTextNode(text.slice(last) + '\n'));
+  }
+
   function classifyLine(text) {
     if (text.startsWith('$'))                                      return 'log-cmd';
-    if (text.includes('[ERRO]') || text.includes('Error:') ||
-        text.includes('Traceback') || text.startsWith('✗'))       return 'log-error';
+    if (text.includes('[ERRO]') || text.includes('Traceback') ||
+        text.startsWith('✗'))                                      return 'log-error';
     if (text.includes('[WARN]') || text.includes('[AVISO]'))       return 'log-warn';
     if (text.includes('[OK]') || text.startsWith('✓'))             return 'log-ok';
     if (text.includes('[*]') || text.startsWith('  ->'))           return 'log-info';
     if (text.startsWith('---') || text.startsWith('==='))          return 'log-sep';
+    // Library log format: "2026-06-15 06:12:08 - module.name - INFO - ..."
+    if (/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - [\w.]+ - (INFO|WARNING|DEBUG)/.test(text)) return 'log-lib';
     return '';
   }
 

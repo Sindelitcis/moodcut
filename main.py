@@ -8,12 +8,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from modules.analyzer import _sanitize_title, analyze
-from modules.chunker import chunk_transcript
-from modules.clipper import _sanitize_filename, cut_clips
-from modules.downloader import download_vod, get_vod_metadata
-from modules.transcriber import transcribe
-
 
 def load_from_cache(metadata: dict, video_path: str = "") -> tuple:
     """Load clips, thumbs and highlights from cache for partial runs.
@@ -21,6 +15,9 @@ def load_from_cache(metadata: dict, video_path: str = "") -> tuple:
     Returns:
         ``(clips, thumbs, highlights, video_path)``
     """
+    from modules.analyzer import _sanitize_title
+    from modules.clipper import _sanitize_filename
+
     safe_name = _sanitize_title(metadata.get("title", "analysis"))
     analysis_path = Path("output/analysis") / f"{safe_name}.json"
 
@@ -96,9 +93,16 @@ def main():
             nome = _cfg.get("canais", {}).get(ch, {}).get("nome", f"Canal {ch}")
         except Exception:
             nome = f"Canal {ch}"
-        print(f"[*] Autorizando: {nome} (canal {ch})", file=sys.stderr)
+        print(f"[*] Autorizando: {nome} (canal {ch})", flush=True)
         auth_channel(ch)
         sys.exit(0)
+
+    # Heavy ML imports — only loaded for pipeline runs, NOT for --auth
+    from modules.analyzer import analyze
+    from modules.chunker import chunk_transcript
+    from modules.clipper import cut_clips
+    from modules.downloader import download_vod, get_vod_metadata
+    from modules.transcriber import transcribe
 
     if not args.url:
         parser.error("url é obrigatório (exceto com --auth)")

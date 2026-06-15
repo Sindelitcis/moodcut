@@ -44,21 +44,25 @@ def _get_authenticated_service(channel: int = 1):
             auth_url, _ = flow.authorization_url(
                 prompt="consent", access_type="offline"
             )
-            print("\n" + "=" * 60, file=sys.stderr)
-            print(f"  [auth] Canal {channel} — passo a passo:", file=sys.stderr)
-            print(f"  1. Abra este link no navegador:", file=sys.stderr)
-            print(f"\n  {auth_url}\n", file=sys.stderr)
-            print(f"  2. Autorize a conta do YouTube.", file=sys.stderr)
-            print(f"  3. O navegador vai dar erro — isso é normal.", file=sys.stderr)
-            print(f"  4. Copie a URL COMPLETA da barra de endereços e cole aqui.", file=sys.stderr)
-            print("=" * 60, file=sys.stderr)
+            # Print to stdout with flush=True so the web UI pipe receives
+            # the data immediately (stderr redirect on Windows can buffer).
+            print("\n" + "=" * 60, flush=True)
+            print(f"  [auth] Canal {channel} — autorização necessária:", flush=True)
+            print(f"  1. Abra o link abaixo no navegador:", flush=True)
+            print(f"\n  {auth_url}\n", flush=True)
+            print(f"  2. Faça login e autorize.", flush=True)
+            print(f"  3. O navegador vai dar erro de conexão — isso é normal.", flush=True)
+            print(f"  4. Copie a URL COMPLETA da barra de endereços e cole no campo abaixo.", flush=True)
+            print("=" * 60, flush=True)
             redirect_response = input("  Cole a URL completa aqui: ").strip()
+            # Allow http://localhost as redirect URI (oauthlib blocks http by default)
+            os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
             flow.fetch_token(authorization_response=redirect_response)
             creds = flow.credentials
 
         with open(token_path, "w") as f:
             f.write(creds.to_json())
-        print(f"  [auth] Token salvo: {token_path}", file=sys.stderr)
+        print(f"[OK] Token salvo: {token_path}", flush=True)
 
     return build("youtube", "v3", credentials=creds)
 
@@ -66,7 +70,7 @@ def _get_authenticated_service(channel: int = 1):
 def auth_channel(channel: int = 1) -> None:
     """Run OAuth flow for *channel* and save token. Use with --auth flag."""
     _get_authenticated_service(channel)
-    print(f"[OK] Canal {channel} autorizado com sucesso.", file=sys.stderr)
+    print(f"[OK] Canal {channel} autorizado com sucesso.", flush=True)
 
 
 def upload_video(
