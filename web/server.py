@@ -27,6 +27,7 @@ app = FastAPI(title="Moodcut")
 _process: asyncio.subprocess.Process | None = None
 _logs: list[str] = []
 _running: bool = False
+_stdin_pipe: bool = False   # True when process expects stdin (auth flow)
 
 
 # ── Models ─────────────────────────────────────────────────────────────────
@@ -39,6 +40,14 @@ class RunRequest(BaseModel):
     skip_thumb: bool = False
     only_thumb: bool = False
     only_upload: bool = False
+
+
+class AuthRequest(BaseModel):
+    channel: int = 1
+
+
+class StdinRequest(BaseModel):
+    text: str
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────
@@ -88,7 +97,6 @@ async def api_thumbs():
 
 @app.get("/thumbs/{filename}")
 async def serve_thumb(filename: str):
-    # Security: no path traversal, only .jpg
     if "/" in filename or "\\" in filename or not filename.endswith(".jpg"):
         raise HTTPException(status_code=400, detail="Invalid filename")
     path = ROOT / "output" / "thumbs" / filename
@@ -99,7 +107,7 @@ async def serve_thumb(filename: str):
 
 @app.post("/api/run")
 async def api_run(req: RunRequest):
-    global _running
+    global _running, _logs, _stdin_pipe
     if _running:
         return {"error": "Pipeline já está rodando"}
 
@@ -113,8 +121,42 @@ async def api_run(req: RunRequest):
     if req.only_upload:
         cmd.append("--only-upload")
 
-    asyncio.create_task(_run_pipeline(cmd))
+    # Set state synchronously BEFORE creating the task so the SSE stream
+    # can't race and send __DONE__ before the process starts.
+    _running = True
+    _stdin_pipe = False
+    _logs = [f"$ {' '.join(cmd)}"]
+    asyncio.create_task(_run_pipeline(cmd, with_stdin=False))
     return {"ok": True, "cmd": " ".join(cmd)}
+
+
+@app.post("/api/auth")
+async def api_auth(req: AuthRequest):
+    global _running, _logs, _stdin_pipe
+    if _running:
+        return {"error": "Pipeline já está rodando"}
+
+    cmd = ["py", "-3.12", "main.py", "--auth", f"--channel={req.channel}"]
+    _running = True
+    _stdin_pipe = True
+    _logs = [f"$ {' '.join(cmd)}"]
+    asyncio.create_task(_run_pipeline(cmd, with_stdin=True))
+    return {"ok": True}
+
+
+@app.post("/api/stdin")
+async def api_stdin(req: StdinRequest):
+    """Send a line of text to the running process's stdin (used for auth URL)."""
+    global _process
+    if not _process or _process.stdin is None:
+        return {"error": "Sem processo ativo ou stdin não disponível"}
+    try:
+        _process.stdin.write((req.text + "\n").encode())
+        await _process.stdin.drain()
+        _logs.append(f"  [stdin] {req.text[:80]}")
+        return {"ok": True}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.post("/api/stop")
@@ -128,30 +170,22 @@ async def api_stop():
 
 @app.get("/api/stream")
 async def api_stream(from_line: int = 0):
-    """SSE endpoint — streams log lines from *from_line* onward.
-
-    The client connects once and receives new lines as they are appended.
-    When the pipeline finishes, a final ``__DONE__`` event is sent.
-    Keepalive comments are sent every ~2 s so proxies don't drop the connection.
-    """
+    """SSE endpoint — streams log lines from *from_line* onward."""
 
     async def generate():
         pos = from_line
         ticks = 0
         while True:
-            # Flush all available lines
             while pos < len(_logs):
                 line = _logs[pos].rstrip("\r\n")
                 yield f"data: {line}\n\n"
                 pos += 1
                 ticks = 0
 
-            # End of stream
             if not _running and pos >= len(_logs):
                 yield "data: __DONE__\n\n"
                 return
 
-            # Keepalive every ~2 s
             ticks += 1
             if ticks >= 20:
                 yield ": keepalive\n\n"
@@ -172,16 +206,15 @@ async def api_stream(from_line: int = 0):
 # ── Pipeline runner ─────────────────────────────────────────────────────────
 
 
-async def _run_pipeline(cmd: list[str]) -> None:
-    global _process, _logs, _running
-    _running = True
-    _logs = [f"$ {' '.join(cmd)}"]
+async def _run_pipeline(cmd: list[str], *, with_stdin: bool = False) -> None:
+    global _process, _running
 
     try:
         _process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            stdin=asyncio.subprocess.PIPE if with_stdin else None,
             cwd=str(ROOT),
         )
         assert _process.stdout is not None
@@ -193,7 +226,7 @@ async def _run_pipeline(cmd: list[str]) -> None:
         await _process.wait()
         code = _process.returncode
         symbol = "✓" if code == 0 else "✗"
-        _logs.append(f"{symbol} Pipeline encerrado (código {code})")
+        _logs.append(f"{symbol} Processo encerrado (código {code})")
     except Exception as exc:  # pragma: no cover
         _logs.append(f"[ERRO INTERNO] {exc}")
     finally:
