@@ -10,6 +10,7 @@ Then open: http://localhost:8000
 """
 
 import asyncio
+import os
 from pathlib import Path
 
 import uvicorn
@@ -209,6 +210,11 @@ async def api_stream(from_line: int = 0):
 async def _run_pipeline(cmd: list[str], *, with_stdin: bool = False) -> None:
     global _process, _running
 
+    # Force UTF-8 output from the child Python process on Windows.
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+
     try:
         _process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -216,6 +222,7 @@ async def _run_pipeline(cmd: list[str], *, with_stdin: bool = False) -> None:
             stderr=asyncio.subprocess.STDOUT,
             stdin=asyncio.subprocess.PIPE if with_stdin else None,
             cwd=str(ROOT),
+            env=env,
         )
         assert _process.stdout is not None
 
