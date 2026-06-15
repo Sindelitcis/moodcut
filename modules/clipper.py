@@ -1,11 +1,15 @@
-"""Cut highlight clips from a VOD using ffmpeg and burn subtitles."""
+"""Cut highlight clips from a VOD using ffmpeg — single-pass NVENC encode
+with frame-accurate seek and optional subtitle burn."""
 
+import logging
+import math
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_hms(hms: str) -> int:
@@ -63,22 +67,100 @@ def _get_video_duration(video_path: Path) -> float:
     return float(result.stdout.strip())
 
 
+def _find_keyframe(video_path: Path, start_sec: int) -> tuple[float, float]:
+    """Find the closest keyframe <= start_sec via ffprobe.
+
+    Probes the interval ``[start_sec-10, start_sec+0.1]`` for keyframes
+    and returns the largest ``pts_time`` that does not exceed ``start_sec``.
+
+    Returns:
+        ``(keyframe_pts, residual)`` where ``residual = start_sec - keyframe_pts``.
+
+    Falls back to rounding down to the nearest multiple of 2 if ffprobe
+    fails or returns no usable keyframe.
+    """
+    interval_start = max(0.0, start_sec - 10.0)
+    interval_end = start_sec + 0.1
+
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v",
+            "-skip_frame",
+            "nokey",
+            "-show_entries",
+            "frame=pts_time",
+            "-of",
+            "csv=p=0",
+            "-read_intervals",
+            f"{interval_start}%{interval_end}",
+            str(video_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode == 0 and result.stdout.strip():
+        keyframes: list[float] = []
+        for line in result.stdout.strip().splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    pts = float(line)
+                    if pts <= start_sec:
+                        keyframes.append(pts)
+                except ValueError:
+                    continue
+
+        if keyframes:
+            best = max(keyframes)
+            return best, start_sec - best
+
+    # Fallback: round down to nearest multiple of 2
+    fallback = math.floor(start_sec / 2) * 2
+    return float(fallback), start_sec - fallback
+
+
 def _build_srt_entries(
     transcript_segments: list[dict],
     clip_start_sec: int,
     clip_end_sec: int,
+    keyframe_seek: float,
 ) -> list[str]:
     """Build a list of SRT entry strings for a given clip time range.
 
-    Timestamps in the entries are relative to ``clip_start_sec``.
+    Timestamps in the entries are relative to ``keyframe_seek`` (the
+    actual start of the output video).  Word filtering, however, is
+    still anchored to ``clip_start_sec`` (= ``padded_start``) so that
+    no words from before the intended clip boundary appear.
+
     Returns an empty list when no segments overlap the range.
+
+    For segments that start before ``clip_start_sec``, word-level
+    alignment data (``seg["words"]``) is used to filter out words
+    whose timestamp falls before the clip boundary.
     """
     entries: list[str] = []
     idx = 1
     for seg in transcript_segments:
         seg_start = float(seg["start"])
         seg_end = float(seg["end"])
-        text = seg.get("text", "").strip()
+
+        # ── Word-level filtering for segments that begin before the clip ──
+        if seg_start < clip_start_sec and "words" in seg and seg["words"]:
+            filtered_words = [
+                w for w in seg["words"] if w.get("start", 0) >= clip_start_sec
+            ]
+            if not filtered_words:
+                continue
+            seg_start = filtered_words[0]["start"]
+            text = " ".join(w.get("word", "").strip() for w in filtered_words).strip()
+        else:
+            text = seg.get("text", "").strip()
+
         if not text:
             continue
 
@@ -86,9 +168,9 @@ def _build_srt_entries(
         if seg_end <= clip_start_sec or seg_start >= clip_end_sec:
             continue
 
-        # Clip to boundaries and make relative
-        rel_start = max(0.0, seg_start - clip_start_sec)
-        rel_end = min(clip_end_sec - clip_start_sec, seg_end - clip_start_sec)
+        # Clip to boundaries and make relative to keyframe_seek
+        rel_start = max(0.0, seg_start - keyframe_seek)
+        rel_end = min(clip_end_sec - keyframe_seek, seg_end - keyframe_seek)
 
         if rel_end - rel_start < 0.1:
             continue
@@ -101,6 +183,21 @@ def _build_srt_entries(
     return entries
 
 
+def _run_ffmpeg(cmd: list[str], label: str, i: int, total: int) -> bool:
+    """Run an FFmpeg command with logging and return success status."""
+    logger.debug("FFmpeg command: %s", " ".join(cmd))
+    logger.info("  [ffmpeg] %s clipe %d/%d", label, i, total)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        logger.error(
+            "  [ERRO] FFmpeg falhou no clipe %d: %s",
+            i,
+            result.stderr.strip()[:300],
+        )
+        return False
+    return True
+
+
 def cut_clips(
     video_path: str,
     segments: list,
@@ -108,9 +205,9 @@ def cut_clips(
 ) -> list[str]:
     """Cut each approved segment from the video into individual clip files.
 
-    Each clip is first extracted with fast stream copy, then subtitles from
-    the transcription are burned in using ``-vf subtitles=`` (white font,
-    black outline, size 18, bottom-centre aligned).
+    Single-pass NVENC encode with frame-accurate seek and optional subtitle
+    burn.  No intermediate files are created — the VOD is the only input and
+    the final clip is the only output per segment.
 
     Args:
         video_path: Path to the downloaded VOD.
@@ -137,19 +234,12 @@ def cut_clips(
 
     padding_start = int(config.get("padding_start", 10))
     padding_end = int(config.get("padding_end", 8))
+    max_clip_duration = int(config.get("max_clip_duration", 0))
 
     # ── Get video duration ───────────────────────────────────────
-    print(
-        "  [ffprobe] Obtendo duração do vídeo...",
-        file=sys.stderr,
-        flush=True,
-    )
+    logger.info("  [ffprobe] Obtendo duração do vídeo...")
     video_duration = _get_video_duration(video_path)
-    print(
-        f"  [ffprobe] Duração total: {video_duration:.1f}s",
-        file=sys.stderr,
-        flush=True,
-    )
+    logger.info("  [ffprobe] Duração total: %.1fs", video_duration)
 
     generated: list[str] = []
 
@@ -161,185 +251,170 @@ def cut_clips(
 
         # ── Validate timestamps ──────────────────────────────────
         if not inicio or not fim:
-            print(
-                f"  [AVISO] Segmento {i} sem timestamps, pulando",
-                file=sys.stderr,
-                flush=True,
-            )
+            logger.warning("  [AVISO] Segmento %d sem timestamps, pulando", i)
             continue
 
         raw_start = _parse_hms(inicio)
         raw_end = _parse_hms(fim)
 
         if raw_end <= raw_start:
-            print(
-                f"  [AVISO] Duração inválida ({raw_end - raw_start}s) "
-                f"para segmento {i}, pulando",
-                file=sys.stderr,
-                flush=True,
+            logger.warning(
+                "  [AVISO] Duração inválida (%ds) para segmento %d, pulando",
+                raw_end - raw_start,
+                i,
+            )
+            continue
+
+        # ── Max clip duration guard ──────────────────────────────
+        raw_duration = raw_end - raw_start
+        if max_clip_duration > 0 and raw_duration > max_clip_duration:
+            logger.warning(
+                "  [AVISO] Segmento %d dura %ds, excede max_clip_duration=%ds, pulando",
+                i,
+                raw_duration,
+                max_clip_duration,
             )
             continue
 
         # ── Apply padding ────────────────────────────────────────
         padded_start = max(0, raw_start - padding_start)
         padded_end = min(int(video_duration), raw_end + padding_end)
-        duration = padded_end - padded_start
 
-        if duration <= 0:
-            print(
-                f"  [AVISO] Duração após padding é zero para segmento {i}, pulando",
-                file=sys.stderr,
-                flush=True,
+        if padded_end <= padded_start:
+            logger.warning(
+                "  [AVISO] Duração após padding é zero para segmento %d, pulando",
+                i,
             )
             continue
 
-        start_str = _format_hms(padded_start)
-        dur_str = str(duration)
-
         # ── Build output paths ───────────────────────────────────
-        out_dir = Path("output") / humor
+        out_dir = Path("output/clips")
         out_dir.mkdir(parents=True, exist_ok=True)
 
         safe_title = _sanitize_filename(titulo)
-        base = f"{i:02d}_{safe_title}"
-        temp_path = out_dir / f"{base}.tmp.mp4"
+        base = f"{i:02d}_{humor}_{safe_title}"
         final_path = out_dir / f"{base}.mp4"
         srt_path = out_dir / f"{base}.srt"
 
-        # ── Cache check ──────────────────────────────────────────────
+        # ── Cache check ──────────────────────────────────────────
         if final_path.exists():
-            print(
-                f"  [cache] Clipe já existe, pulando corte: {final_path}",
-                file=sys.stderr,
-                flush=True,
+            logger.info(
+                "  [cache] Clipe já existe, pulando corte: %s",
+                final_path,
             )
             generated.append(str(final_path.resolve()))
             continue
 
-        # ── Step 1: cut with stream copy → temp file ─────────────
-        cmd_cut = [
+        # ── Frame-accurate seek parameters ───────────────────────
+        # Probe the actual keyframe nearest to padded_start via ffprobe,
+        # falling back to the multiple-of-2 approximation on failure.
+        keyframe_seek, residual = _find_keyframe(video_path, padded_start)
+
+        # Single seek at input: output starts at keyframe_seek.
+        # Duration covers up to padded_end.
+        duration = padded_end - keyframe_seek
+
+        # ── Build FFmpeg command ─────────────────────────────────
+        cmd = [
             "ffmpeg",
             "-ss",
-            start_str,
+            str(keyframe_seek),
             "-i",
             str(video_path),
             "-t",
-            dur_str,
-            "-c",
-            "copy",
-            "-avoid_negative_ts",
-            "make_zero",
-            "-y",
-            str(temp_path),
+            str(duration),
         ]
 
-        padding_info = f"[padding: -{padding_start}s / +{padding_end}s]"
-        print(
-            f"  [ffmpeg] Cortando clipe {i}/{len(segments)}: "
-            f"{safe_title}.mp4 {padding_info} "
-            f"(start {inicio}→{start_str}, {duration}s)",
-            file=sys.stderr,
-            flush=True,
+        # ── Generate subtitle file if applicable ─────────────────
+        srt_entries = _build_srt_entries(
+            transcript_segments, padded_start, padded_end, keyframe_seek
         )
 
-        result = subprocess.run(cmd_cut, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            print(
-                f"  [ERRO] ffmpeg (corte) falhou no clipe {i}: "
-                f"{result.stderr.strip()[:200]}",
-                file=sys.stderr,
-                flush=True,
-            )
-            continue
-
-        if not temp_path.exists():
-            print(
-                f"  [ERRO] Arquivo temporário não gerado: {temp_path}",
-                file=sys.stderr,
-                flush=True,
-            )
-            continue
-
-        # ── Step 2: generate SRT ─────────────────────────────────
-        srt_entries = _build_srt_entries(transcript_segments, padded_start, padded_end)
-
-        if srt_entries:
+        has_subs = bool(srt_entries)
+        if has_subs:
             srt_path.write_text("\n".join(srt_entries), encoding="utf-8")
-
-            # Use forward slashes so ffmpeg's subtitles filter parses
-            # the path correctly even on Windows.
             srt_for_ffmpeg = str(srt_path).replace("\\", "/")
+            cmd.extend(
+                [
+                    "-vf",
+                    f"subtitles={srt_for_ffmpeg}:force_style="
+                    f"'FontSize=14,"
+                    f"PrimaryColour=&H00FFFFFF,"
+                    f"BackColour=&H80000000,"
+                    f"BorderStyle=4,"
+                    f"Outline=0,"
+                    f"Shadow=0,"
+                    f"Alignment=2,"
+                    f"MarginV=20'",
+                ]
+            )
 
-            # ── Step 3: burn subtitles into final file ───────────
-            cmd_burn = [
-                "ffmpeg",
-                "-i",
-                str(temp_path),
-                "-vf",
-                f"subtitles={srt_for_ffmpeg}:force_style="
-                f"'FontSize=14,"
-                f"PrimaryColour=&H00FFFFFF,"
-                f"BackColour=&H80000000,"
-                f"BorderStyle=4,"
-                f"Outline=0,"
-                f"Shadow=0,"
-                f"Alignment=2,"
-                f"MarginV=20'",
+        # ── Encoder settings ─────────────────────────────────────
+        encoder_args = [
+            "-c:v",
+            "h264_nvenc",
+            "-cq",
+            "18",
+            "-preset",
+            "p4",
+            "-c:a",
+            "copy",
+            "-y",
+            str(final_path),
+        ]
+        cmd.extend(encoder_args)
+
+        # ── Execute FFmpeg ───────────────────────────────────────
+        label = f"Gravando legenda: {base}.mp4" if has_subs else f"Cortando: {base}.mp4"
+
+        success = _run_ffmpeg(cmd, label, i, len(segments))
+
+        # ── Fallback: NVENC → libx264 ────────────────────────────
+        if not success:
+            logger.warning(
+                "  [AVISO] NVENC falhou no clipe %d, tentando libx264...",
+                i,
+            )
+            fallback_encoder = [
                 "-c:v",
-                "h264_nvenc",
-                "-cq",
+                "libx264",
+                "-crf",
                 "18",
                 "-preset",
-                "p4",
+                "fast",
                 "-c:a",
                 "copy",
                 "-y",
                 str(final_path),
             ]
+            # Swap encoder_args block in-place
+            fallback_cmd = cmd[: -len(encoder_args)] + fallback_encoder
 
-            print(
-                f"  [ffmpeg] Gravando legendas: {base}.mp4",
-                file=sys.stderr,
-                flush=True,
+            success = _run_ffmpeg(
+                fallback_cmd,
+                f"libx264 (fallback): {base}.mp4",
+                i,
+                len(segments),
             )
 
-            result_burn = subprocess.run(cmd_burn, capture_output=True, text=True)
+        # ── Cleanup subtitle file ────────────────────────────────
+        if srt_path.exists():
+            srt_path.unlink()
 
-            if result_burn.returncode != 0:
-                print(
-                    f"  [ERRO] ffmpeg (legendas) falhou no clipe {i}: "
-                    f"{result_burn.stderr.strip()[:200]}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                # Fall back to temp clip (no subs) rather than losing the clip
-                temp_path.rename(final_path)
-            else:
-                # Clean up temp + SRT
-                if srt_path.exists():
-                    srt_path.unlink()
-        else:
-            # No subtitles to burn — just rename temp to final
-            temp_path.rename(final_path)
-
-        # Clean up temp file if it still exists
-        if temp_path.exists():
-            temp_path.unlink()
+        if not success:
+            # Remove any partial/broken output
+            if final_path.exists():
+                final_path.unlink()
+            continue
 
         if not final_path.exists():
-            print(
-                f"  [ERRO] Arquivo final não gerado: {final_path}",
-                file=sys.stderr,
-                flush=True,
+            logger.error(
+                "  [ERRO] Arquivo final não gerado: %s",
+                final_path,
             )
             continue
 
-        print(
-            f"    -> {final_path}  ({duration}s)",
-            file=sys.stderr,
-            flush=True,
-        )
+        logger.info("    -> %s  (%ds)", final_path, duration)
         generated.append(str(final_path.resolve()))
 
     return generated

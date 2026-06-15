@@ -31,7 +31,10 @@ def generate_thumbnail(
         Absolute path of the generated thumbnail (``.jpg``).
     """
     clip_path = Path(clip_path)
-    thumb_path = clip_path.with_suffix(".jpg")
+    thumb_dir = Path("output/thumbs")
+    thumb_dir.mkdir(parents=True, exist_ok=True)
+
+    thumb_path = thumb_dir / f"{clip_path.stem}.jpg"
 
     if thumb_path.exists():
         print(
@@ -45,10 +48,7 @@ def generate_thumbnail(
     if not video_path.exists():
         raise FileNotFoundError(f"VOD não encontrado: {video_path}")
 
-    output_dir = clip_path.parent
-    thumb_path = output_dir / f"{clip_path.stem}.jpg"
-
-    with tempfile.TemporaryDirectory(dir=output_dir) as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=thumb_dir) as tmp_dir:
         tmp = Path(tmp_dir)
 
         # ── Extract 10 frames from the VOD (1 every 6s) ───────
