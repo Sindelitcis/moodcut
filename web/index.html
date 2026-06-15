@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moodcut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #0a0a0a;
+      --surface:      #111111;
+      --surface2:     #191919;
+      --border:       #252525;
+      --border-light: #333333;
+      --text:         #e8e8e8;
+      --text-muted:   #606060;
+      --accent:       #FF4500;
+      --accent-dim:   rgba(255, 69, 0, 0.12);
+      --accent-glow:  rgba(255, 69, 0, 0.25);
+      --green:        #4ade80;
+      --red:          #f87171;
+      --yellow:       #fbbf24;
+      --blue:         #60a5fa;
+      --term-bg:      #0c0c0c;
+      --term-text:    #c8c8c8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      gap: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 3px;
+      color: #fff;
+      text-transform: uppercase;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
+    }
+
+    .status-badge.running {
+      color: var(--accent);
+      border-color: var(--accent-glow);
+      background: var(--accent-dim);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.3s;
+    }
+
+    .status-badge.running .status-dot {
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Main layout ─────────────────────────────────────────── */
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Controls panel ──────────────────────────────────────── */
+    .controls {
+      width: 300px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      background: var(--surface);
+    }
+
+    .controls::-webkit-scrollbar { width: 4px; }
+    .controls::-webkit-scrollbar-track { background: transparent; }
+    .controls::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    /* Field */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    label.field-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    input[type="text"], input[type="url"], select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      padding: 9px 12px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="text"]:focus, input[type="url"]:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    input::placeholder { color: var(--text-muted); }
+
+    .select-wrapper {
+      position: relative;
+    }
+
+    .select-wrapper::after {
+      content: '▾';
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      font-size: 12px;
+    }
+
+    /* Checkboxes */
+    .checks { display: flex; flex-direction: column; gap: 6px; }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+
+    .check-item:hover { border-color: var(--border-light); background: #1e1e1e; }
+
+    .check-item input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .check-item span {
+      font-size: 13px;
+      color: var(--text);
+      flex: 1;
+    }
+
+    .check-item small {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #e03d00;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #222;
+      border-color: var(--border-light);
+      color: var(--text);
+    }
+
+    .btn-secondary:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background: rgba(248, 113, 113, 0.1);
+      color: var(--red);
+      border: 1px solid rgba(248, 113, 113, 0.25);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(248, 113, 113, 0.2);
+    }
+
+    .btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Terminal ────────────────────────────────────────────── */
+    .terminal-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 40px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .terminal-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .term-controls { display: flex; gap: 8px; }
+
+    .btn-small {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-small:hover { border-color: var(--border-light); color: var(--text); background: var(--surface2); }
+
+    .terminal {
+      flex: 1;
+      background: var(--term-bg);
+      font-family: 'JetBrains Mono', 'Consolas', monospace;
+      font-size: 12.5px;
+      line-height: 1.65;
+      padding: 16px 20px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      color: var(--term-text);
+      word-break: break-all;
+    }
+
+    .terminal::-webkit-scrollbar { width: 5px; }
+    .terminal::-webkit-scrollbar-track { background: transparent; }
+    .terminal::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+    .term-placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    /* Log line colors */
+    .log-line { display: block; white-space: pre-wrap; }
+    .log-cmd   { color: #888; }
+    .log-ok    { color: var(--green); }
+    .log-error { color: var(--red); }
+    .log-warn  { color: var(--yellow); }
+    .log-info  { color: var(--blue); }
+    .log-done  { color: var(--green); font-weight: 500; }
+    .log-sep   { color: #444; }
+
+    /* ── Thumbnails section ──────────────────────────────────── */
+    .thumbs-section {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      max-height: 240px;
+      overflow: hidden;
+      display: none;
+      flex-direction: column;
+    }
+
+    .thumbs-section.visible { display: flex; }
+
+    .thumbs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      height: 40px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .thumbs-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .thumbs-count {
+      background: var(--accent-dim);
+      color: var(--accent);
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--accent-glow);
+    }
+
+    .thumbs-scroll {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 12px 20px;
+      flex: 1;
+    }
+
+    .thumbs-scroll::-webkit-scrollbar { height: 4px; }
+    .thumbs-scroll::-webkit-scrollbar-track { background: transparent; }
+    .thumbs-scroll::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+    .thumbs-grid {
+      display: flex;
+      gap: 10px;
+      height: 100%;
+    }
+
+    .thumb-card {
+      flex-shrink: 0;
+      width: 192px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .thumb-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+
+    .thumb-card img {
+      width: 100%;
+      height: 108px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .thumb-caption {
+      padding: 5px 8px;
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .thumb-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 20px;
+    }
+
+    .thumb-card:hover .thumb-overlay { opacity: 1; }
+
+    /* ── Responsive ──────────────────────────────────────────── */
+    @media (max-width: 700px) {
+      .controls { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 45vh; }
+      .layout { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">▶</div>
+    Moodcut
+  </div>
+  <div class="header-right">
+    <div class="status-badge" id="statusBadge">
+      <div class="status-dot"></div>
+      <span id="statusText">Idle</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Controls -->
+  <aside class="controls">
+
+    <!-- URL -->
+    <div class="field">
+      <label class="field-label">URL do VOD</label>
+      <input
+        type="url"
+        id="urlInput"
+        placeholder="https://www.twitch.tv/videos/…"
+        autocomplete="off"
+        spellcheck="false"
+      >
+    </div>
+
+    <!-- Channel -->
+    <div class="field">
+      <label class="field-label">Canal</label>
+      <div class="select-wrapper">
+        <select id="channelSelect">
+          <option value="1">Canal 1</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Flags -->
+    <div class="field">
+      <label class="field-label">Opções</label>
+      <div class="checks">
+
+        <label class="check-item">
+          <input type="checkbox" id="skipUpload">
+          <span>Skip Upload</span>
+          <small>--skip-upload</small>
+        </label>
+
+        <label class="check-item">
+          <input type="checkbox" id="skipThumb">
+          <span>Skip Thumbnail</span>
+          <small>--skip-thumb</small>
+        </label>
+
+        <label class="check-item" id="itemOnlyThumb">
+          <input type="checkbox" id="onlyThumb">
+          <span>Só Thumbnails</span>
+          <small>--only-thumb</small>
+        </label>
+
+        <label class="check-item" id="itemOnlyUpload">
+          <input type="checkbox" id="onlyUpload">
+          <span>Só Upload</span>
+          <small>--only-upload</small>
+        </label>
+
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Actions -->
+    <div class="btn-group">
+      <button class="btn btn-primary" id="runBtn" disabled>
+        ▶&nbsp; Rodar Pipeline
+      </button>
+      <button class="btn btn-danger" id="stopBtn" disabled>
+        ■&nbsp; Parar
+      </button>
+      <button class="btn btn-secondary" id="thumbsBtn" type="button">
+        🖼&nbsp; Ver Thumbnails
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- Terminal column -->
+  <div class="terminal-col">
+    <div class="terminal-header">
+      <div class="terminal-title">
+        Terminal
+        <span id="lineCount" style="color:#444;font-size:10px;font-family:'JetBrains Mono',monospace"></span>
+      </div>
+      <div class="term-controls">
+        <button class="btn-small" id="clearBtn">Limpar</button>
+        <button class="btn-small" id="scrollBtn">↓ Fim</button>
+      </div>
+    </div>
+    <div class="terminal" id="terminal">
+      <span class="term-placeholder">Pipeline inativo. Configure uma URL e clique em Rodar.</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Thumbnails ───────────────────────────────────────── -->
+<div class="thumbs-section" id="thumbsSection">
+  <div class="thumbs-header">
+    <div class="thumbs-title">
+      Thumbnails Geradas
+      <span class="thumbs-count" id="thumbsCount">0</span>
+    </div>
+    <button class="btn-small" id="refreshThumbsBtn">Atualizar</button>
+  </div>
+  <div class="thumbs-scroll">
+    <div class="thumbs-grid" id="thumbsGrid"></div>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────
+  let isRunning  = false;
+  let streamCtrl = null; // AbortController for the SSE fetch
+
+  // ── DOM refs ───────────────────────────────────────────────────────────
+  const urlInput      = document.getElementById('urlInput');
+  const channelSelect = document.getElementById('channelSelect');
+  const skipUpload    = document.getElementById('skipUpload');
+  const skipThumb     = document.getElementById('skipThumb');
+  const onlyThumb     = document.getElementById('onlyThumb');
+  const onlyUpload    = document.getElementById('onlyUpload');
+  const runBtn        = document.getElementById('runBtn');
+  const stopBtn       = document.getElementById('stopBtn');
+  const thumbsBtn     = document.getElementById('thumbsBtn');
+  const terminal      = document.getElementById('terminal');
+  const statusBadge   = document.getElementById('statusBadge');
+  const statusText    = document.getElementById('statusText');
+  const lineCount     = document.getElementById('lineCount');
+  const thumbsSection = document.getElementById('thumbsSection');
+  const thumbsGrid    = document.getElementById('thumbsGrid');
+  const thumbsCount   = document.getElementById('thumbsCount');
+
+  // ── Init ───────────────────────────────────────────────────────────────
+  async function init() {
+    await loadChannels();
+    checkStatus();
+    loadThumbs();
+    urlInput.addEventListener('input', updateRunBtn);
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') runBtn.click();
+    });
+    // Mutually exclusive only-* checkboxes
+    onlyThumb.addEventListener('change', () => { if (onlyThumb.checked) onlyUpload.checked = false; });
+    onlyUpload.addEventListener('change', () => { if (onlyUpload.checked) onlyThumb.checked = false; });
+  }
+
+  function updateRunBtn() {
+    runBtn.disabled = isRunning || !urlInput.value.trim();
+  }
+
+  // ── Load channels from channels.yaml via API ───────────────────────────
+  async function loadChannels() {
+    try {
+      const res = await fetch('/api/channels');
+      const data = await res.json();
+      channelSelect.innerHTML = '';
+      for (const [id, info] of Object.entries(data)) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = `${info.nome} (Canal ${id})`;
+        channelSelect.appendChild(opt);
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar canais:', e);
+    }
+  }
+
+  // ── Resume stream if already running ───────────────────────────────────
+  async function checkStatus() {
+    try {
+      const res  = await fetch('/api/status');
+      const data = await res.json();
+      if (data.running) {
+        setRunning(true);
+        // Load existing logs then stream from that position
+        const logRes  = await fetch('/api/logs');
+        const logData = await logRes.json();
+        terminal.innerHTML = '';
+        logData.lines.forEach(appendLog);
+        startStream(logData.total);
+      }
+    } catch (e) { /* server not ready yet */ }
+  }
+
+  // ── Run pipeline ────────────────────────────────────────────────────────
+  runBtn.addEventListener('click', async () => {
+    const url = urlInput.value.trim();
+    if (!url || isRunning) return;
+
+    const body = {
+      url,
+      channel:     parseInt(channelSelect.value, 10),
+      skip_upload: skipUpload.checked,
+      skip_thumb:  skipThumb.checked,
+      only_thumb:  onlyThumb.checked,
+      only_upload: onlyUpload.checked,
+    };
+
+    try {
+      const res  = await fetch('/api/run', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+
+      terminal.innerHTML = '';
+      setRunning(true);
+      startStream(0);
+    } catch (e) {
+      alert('Erro ao iniciar pipeline: ' + e.message);
+    }
+  });
+
+  // ── Stop pipeline ───────────────────────────────────────────────────────
+  stopBtn.addEventListener('click', async () => {
+    try {
+      await fetch('/api/stop', { method: 'POST' });
+    } catch (e) { /* ignore */ }
+  });
+
+  // ── Clear terminal ──────────────────────────────────────────────────────
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    terminal.innerHTML = '';
+    lineCount.textContent = '';
+  });
+
+  // ── Scroll to bottom ────────────────────────────────────────────────────
+  document.getElementById('scrollBtn').addEventListener('click', () => {
+    terminal.scrollTop = terminal.scrollHeight;
+  });
+
+  // ── Toggle thumbnails panel ─────────────────────────────────────────────
+  thumbsBtn.addEventListener('click', () => {
+    const visible = thumbsSection.classList.toggle('visible');
+    if (visible) loadThumbs();
+  });
+
+  document.getElementById('refreshThumbsBtn').addEventListener('click', loadThumbs);
+
+  // ── SSE streaming ───────────────────────────────────────────────────────
+  async function startStream(fromLine) {
+    if (streamCtrl) streamCtrl.abort();
+    streamCtrl = new AbortController();
+
+    try {
+      const resp = await fetch(`/api/stream?from_line=${fromLine}`, {
+        signal: streamCtrl.signal,
+      });
+
+      const reader  = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let   buffer  = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line
+
+        for (const raw of lines) {
+          if (!raw.startsWith('data: ')) continue;
+          const text = raw.slice(6);
+          if (text === '__DONE__') {
+            onPipelineComplete();
+            return;
+          }
+          if (text === '') continue; // blank keepalive data
+          appendLog(text);
+        }
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        appendLog('[ERRO] Conexão com o servidor perdida.');
+        setRunning(false);
+      }
+    }
+  }
+
+  function onPipelineComplete() {
+    setRunning(false);
+    loadThumbs();
+    // Auto-show thumbs panel
+    thumbsSection.classList.add('visible');
+  }
+
+  // ── State helpers ───────────────────────────────────────────────────────
+  function setRunning(running) {
+    isRunning = running;
+
+    statusBadge.classList.toggle('running', running);
+    statusText.textContent = running ? 'Rodando' : 'Idle';
+
+    runBtn.disabled  = running || !urlInput.value.trim();
+    stopBtn.disabled = !running;
+  }
+
+  // ── Terminal rendering ──────────────────────────────────────────────────
+  let logLineTotal = 0;
+
+  function appendLog(text) {
+    // Remove placeholder
+    const placeholder = terminal.querySelector('.term-placeholder');
+    if (placeholder) placeholder.remove();
+
+    const atBottom =
+      terminal.scrollHeight - terminal.clientHeight <= terminal.scrollTop + 60;
+
+    const span = document.createElement('span');
+    span.className = 'log-line ' + classifyLine(text);
+    span.textContent = text + '\n';
+    terminal.appendChild(span);
+
+    logLineTotal++;
+    lineCount.textContent = `${logLineTotal} linhas`;
+
+    if (atBottom) terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function classifyLine(text) {
+    if (text.startsWith('$'))                                      return 'log-cmd';
+    if (text.includes('[ERRO]') || text.includes('Error:') ||
+        text.includes('Traceback') || text.startsWith('✗'))       return 'log-error';
+    if (text.includes('[WARN]') || text.includes('[AVISO]'))       return 'log-warn';
+    if (text.includes('[OK]') || text.startsWith('✓'))             return 'log-ok';
+    if (text.includes('[*]') || text.startsWith('  ->'))           return 'log-info';
+    if (text.startsWith('---') || text.startsWith('==='))          return 'log-sep';
+    return '';
+  }
+
+  // ── Thumbnails ──────────────────────────────────────────────────────────
+  async function loadThumbs() {
+    try {
+      const res   = await fetch('/api/thumbs');
+      const files = await res.json();
+
+      thumbsCount.textContent = files.length;
+
+      if (files.length === 0) {
+        thumbsGrid.innerHTML =
+          '<span style="color:var(--text-muted);font-size:13px;align-self:center">Nenhuma thumbnail gerada ainda.</span>';
+        return;
+      }
+
+      thumbsGrid.innerHTML = '';
+      for (const name of files) {
+        const card = document.createElement('div');
+        card.className = 'thumb-card';
+        card.title = name;
+
+        const img = document.createElement('img');
+        img.src     = `/thumbs/${encodeURIComponent(name)}`;
+        img.loading = 'lazy';
+        img.alt     = name;
+
+        const caption = document.createElement('div');
+        caption.className = 'thumb-caption';
+        caption.textContent = formatThumbName(name);
+
+        const overlay = document.createElement('div');
+        overlay.className   = 'thumb-overlay';
+        overlay.textContent = '🔍';
+
+        card.appendChild(img);
+        card.appendChild(caption);
+        card.appendChild(overlay);
+
+        card.addEventListener('click', () => {
+          window.open(`/thumbs/${encodeURIComponent(name)}`, '_blank');
+        });
+
+        thumbsGrid.appendChild(card);
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar thumbnails:', e);
+    }
+  }
+
+  function formatThumbName(filename) {
+    // "01_engracado_titulo_do_clip.jpg" → "01 — Titulo do clip"
+    const name  = filename.replace('.jpg', '');
+    const parts = name.split('_');
+    if (parts.length < 2) return name;
+    const num   = parts[0];
+    const title = parts.slice(2).join(' ');
+    return `${num} — ${title.charAt(0).toUpperCase()}${title.slice(1)}`;
+  }
+
+  // ── Boot ────────────────────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
