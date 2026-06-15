@@ -182,13 +182,14 @@ def analyze(chunks: list[str], metadata: dict) -> list[dict]:
         "Você é um especialista em criar títulos chamativos para clipes do YouTube. "
         "Com base no excerto de transcrição e no nome do tópico fornecidos, "
         "retorne APENAS um JSON objeto válido, sem markdown, sem blocos de código, "
-        "sem texto adicional, com estes campos:\n"
-        '  "titulo_sugerido": título curto e chamativo estilo YouTube\n'
-        "Nunca mencione o humor, emoção ou tom do conteúdo no título. "
-        "O título deve descrever o assunto, não como ele é tratado. "
-        "Exemplos de títulos ruins: 'com muito humor', 'de forma emocionante', "
-        "'discussão séria', 'com leveza'. "
-        "O título deve provocar curiosidade pelo tema, não pelo tom.\n"
+        "sem texto adicional, com estes campos.\n"
+        "IMPORTANTE: todos os campos de texto devem ser escritos no mesmo idioma "
+        "da transcrição fornecida (se a transcrição for em português, escreva em "
+        "português; se for em inglês, escreva em inglês).\n"
+        '  "titulo_sugerido": título chamativo estilo YouTube, máximo 70 caracteres. '
+        "Provoca curiosidade pelo tema, nunca pelo tom. "
+        "Nunca mencione humor, emoção ou tom no título. "
+        "Exemplos ruins: 'com muito humor', 'de forma emocionante', 'discussão séria'.\n"
         '  "humor": exatamente um de: engraçado, triste, raiva, inspirador\n'
         '  "descricao": frase curta descrevendo o que acontece no trecho\n'
         '  "descricao_youtube": string com descrição otimizada para YouTube '
@@ -197,10 +198,10 @@ def analyze(chunks: list[str], metadata: dict) -> list[dict]:
         "sem spoiler, que desperte curiosidade (essas linhas aparecem "
         "antes do 'mostrar mais')\n"
         "  - 1 linha em branco\n"
-        "  - 3 a 5 hashtags relevantes ao tema, separadas por espaço "
-        "(ex: #podcast #saude #humor)\n"
-        "  - As hashtags devem ser em português, lowercase, sem acento, "
-        "relevantes ao tema específico do clipe\n"
+        "  - 3 a 5 hashtags específicas ao tema do clipe, separadas por espaço. "
+        "Use o nome do convidado, assunto exato e nicho — evite tags genéricas "
+        "como #podcast ou #humor que não ajudam no algoritmo. "
+        "Lowercase, sem acento.\n"
         "  - Nunca mencionar o canal, o apresentador pelo nome, ou fazer "
         "chamadas genéricas como 'inscreva-se'\n"
         "  - Máximo 500 caracteres no total\n"
