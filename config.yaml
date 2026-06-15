@@ -1,5 +1,9 @@
 whisper_model: turbo
 min_clip_duration: 480
-max_clip_duration: 0
+max_clip_duration: 3600
 padding_start: 10
 padding_end: 8
+thumb_bg_color: "#1A1A2E"
+thumb_bg_blur: true
+thumb_accent_color: "#FF4500"
+thumb_text_color: "#FFFFFF"

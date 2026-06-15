@@ -1,0 +1,9 @@
+# Canais do YouTube configurados no Moodcut
+# Use --channel N para selecionar o canal ao rodar o pipeline
+# Use --auth --channel N para autorizar um novo canal
+
+canais:
+  1:
+    nome: "Canal RPM"
+  2:
+    nome: "Canal do Kino"

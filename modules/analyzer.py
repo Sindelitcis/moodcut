@@ -203,7 +203,19 @@ def analyze(chunks: list[str], metadata: dict) -> list[dict]:
         "relevantes ao tema específico do clipe\n"
         "  - Nunca mencionar o canal, o apresentador pelo nome, ou fazer "
         "chamadas genéricas como 'inscreva-se'\n"
-        "  - Máximo 500 caracteres no total"
+        "  - Máximo 500 caracteres no total\n"
+        '  "texto_thumbnail": string de 2 a 4 palavras em CAIXA ALTA — '
+        "manchete de capa de revista, impacto máximo. Artigos (O, A, OS, AS) "
+        "e pronomes (ELE, ELA, EU) são permitidos e bem-vindos quando completam "
+        "o sentido — ex: 'SALVOU A MÃE', 'ELE CONFESSOU', 'FUI DEMITIDO', "
+        "'QUASE MORRI', 'PERDEU TUDO'. Jamais verbalizar tom ou humor. "
+        "IMPORTANTE: a palavra_destaque deve ser SEMPRE a última palavra "
+        "(ou últimas palavras) do texto_thumbnail — nunca no meio ou no início.\n"
+        '  "palavra_destaque": a 1 palavra final mais impactante do '
+        "texto_thumbnail. Deve ser exatamente igual à(s) última(s) palavra(s) "
+        "de texto_thumbnail. Exemplo: se texto_thumbnail='QUASE MORRI', "
+        "palavra_destaque='MORRI'. Se texto_thumbnail='20 ANOS DOR', "
+        "palavra_destaque='DOR'."
     )
 
     enriched: list[dict] = []
@@ -271,6 +283,8 @@ def analyze(chunks: list[str], metadata: dict) -> list[dict]:
         entry["humor"] = mood if mood in HUMOR_VALUES else "inspirador"
         entry["descricao"] = enrichment.get("descricao", "")
         entry["descricao_youtube"] = enrichment.get("descricao_youtube", "")
+        entry["texto_thumbnail"] = enrichment.get("texto_thumbnail", "")
+        entry["palavra_destaque"] = enrichment.get("palavra_destaque", "")
 
         enriched.append(entry)
         print(

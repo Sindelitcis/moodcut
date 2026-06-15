@@ -33,28 +33,27 @@ def load_from_cache(metadata: dict, video_path: str = "") -> tuple:
     # ── Reconstruct clip and thumbnail paths from segment data ──
     clips: list[str] = []
     thumbs: list[str] = []
+    clips_dir = Path("output/clips")
+    thumbs_dir = Path("output/thumbs")
     for seg in highlights:
-        humor = seg.get("humor", "outros")
-        titulo = seg.get("titulo_sugerido", "clip")
-        safe = _sanitize_filename(titulo)
-        humor_dir = Path("output") / humor
-        if not humor_dir.exists():
-            clips.append("")
-            thumbs.append("")
-            continue
+        safe = _sanitize_filename(seg.get("titulo_sugerido", "clip"))
 
-        clip_matches = sorted(humor_dir.glob(f"*{safe}.mp4"))
+        clip_matches = sorted(clips_dir.glob(f"*{safe}.mp4")) if clips_dir.exists() else []
         clips.append(str(clip_matches[0].resolve()) if clip_matches else "")
 
-        thumb_matches = sorted(humor_dir.glob(f"*{safe}.jpg"))
+        thumb_matches = sorted(thumbs_dir.glob(f"*{safe}.jpg")) if thumbs_dir.exists() else []
         thumbs.append(str(thumb_matches[0].resolve()) if thumb_matches else "")
 
     # ── Ensure video_path points to the VOD ───────────────────
     if not video_path:
         downloads_dir = Path("output/downloads")
         if downloads_dir.exists():
-            safe_name = _sanitize_title(metadata.get("title", ""))
-            mp4_files = sorted(downloads_dir.glob(f"*{safe_name}*.mp4"))
+            # Pick the largest .mp4 — VOD is always much bigger than any clip
+            mp4_files = sorted(
+                downloads_dir.glob("*.mp4"),
+                key=lambda f: f.stat().st_size,
+                reverse=True,
+            )
             if mp4_files:
                 video_path = str(mp4_files[0].resolve())
 
@@ -63,7 +62,7 @@ def load_from_cache(metadata: dict, video_path: str = "") -> tuple:
 
 def main():
     parser = argparse.ArgumentParser(description="Moodcut pipeline")
-    parser.add_argument("url", help="URL do VOD")
+    parser.add_argument("url", nargs="?", help="URL do VOD")
     parser.add_argument(
         "--only-thumb", action="store_true", help="Gera apenas thumbnails"
     )
@@ -76,13 +75,40 @@ def main():
     parser.add_argument(
         "--skip-thumb", action="store_true", help="Pula a geração de thumbnails"
     )
+    parser.add_argument(
+        "--channel", type=int, default=1, metavar="N",
+        help="Canal do YouTube a usar (padrão: 1). Ver channels.yaml.",
+    )
+    parser.add_argument(
+        "--auth", action="store_true",
+        help="Autoriza o canal N via OAuth e sai (sem processar VOD)",
+    )
     args = parser.parse_args()
+
+    # ── Auth-only mode ─────────────────────────────────────────────────
+    if args.auth:
+        from modules.uploader import auth_channel
+        import yaml as _yaml
+        ch = args.channel
+        try:
+            with open("channels.yaml", encoding="utf-8") as _f:
+                _cfg = _yaml.safe_load(_f)
+            nome = _cfg.get("canais", {}).get(ch, {}).get("nome", f"Canal {ch}")
+        except Exception:
+            nome = f"Canal {ch}"
+        print(f"[*] Autorizando: {nome} (canal {ch})", file=sys.stderr)
+        auth_channel(ch)
+        sys.exit(0)
+
+    if not args.url:
+        parser.error("url é obrigatório (exceto com --auth)")
 
     only_thumb = args.only_thumb
     only_upload = args.only_upload
     skip_upload = args.skip_upload
     skip_thumb = args.skip_thumb
     url = args.url
+    channel = args.channel
 
     load_dotenv()
     total_start = time.time()
@@ -193,11 +219,14 @@ def main():
 
                 t0 = time.time()
                 for clip_path, seg in zip(clips, highlights):
-                    titulo = seg.get("titulo_sugerido", "clip")
+                    titulo = seg.get("texto_thumbnail") or seg.get("titulo_sugerido", "clip")
                     from modules.analyzer import _parse_timestamp
 
                     start_sec = _parse_timestamp(seg.get("inicio", "00:00:00"))
-                    thumb = generate_thumbnail(clip_path, titulo, video_path, start_sec)
+                    thumb = generate_thumbnail(
+                        clip_path, titulo, video_path, start_sec,
+                        palavra_destaque=seg.get("palavra_destaque", ""),
+                    )
                     thumbs.append(thumb)
                     print(f"[*] Thumbnail: {thumb}", file=sys.stderr)
                 elapsed = time.time() - t0
@@ -219,13 +248,19 @@ def main():
             for clip_path, seg in zip(clips, highlights):
                 if not clip_path:
                     continue
-                titulo = seg.get("titulo_sugerido", "clip")
+                titulo = seg.get("texto_thumbnail") or seg.get("titulo_sugerido", "clip")
                 from modules.analyzer import _parse_timestamp
 
                 start_sec = _parse_timestamp(seg.get("inicio", "00:00:00"))
-                # Use the VOD if found, otherwise fall back to clip
-                source = video_path if video_path else clip_path
-                thumb = generate_thumbnail(clip_path, titulo, source, start_sec)
+                # Use the VOD if found, otherwise fall back to clip with relative timestamp
+                if video_path:
+                    source, thumb_start = video_path, start_sec
+                else:
+                    source, thumb_start = clip_path, 0
+                thumb = generate_thumbnail(
+                    clip_path, titulo, source, thumb_start,
+                    palavra_destaque=seg.get("palavra_destaque", ""),
+                )
                 thumbs.append(thumb)
                 print(f"[*] Thumbnail: {thumb}", file=sys.stderr)
             elapsed = time.time() - t0
@@ -253,7 +288,7 @@ def main():
                     continue
                 titulo = seg.get("titulo_sugerido", "clip")
                 descricao = seg.get("descricao_youtube", "")
-                url = upload_video(clip_path, titulo, descricao, thumb)
+                url = upload_video(clip_path, titulo, descricao, thumb, channel=channel)
                 urls.append(url)
             elapsed = time.time() - t0
             print(

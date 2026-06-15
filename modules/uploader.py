@@ -13,16 +13,20 @@ from googleapiclient.http import MediaFileUpload
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 CLIENT_SECRETS = Path("client_secrets.json")
 TOKEN_DIR = Path("auth")
-TOKEN_PATH = TOKEN_DIR / "youtube_token.json"
 
 
-def _get_authenticated_service():
-    """Return an authenticated YouTube API service object."""
+def _token_path(channel: int) -> Path:
+    return TOKEN_DIR / f"token_canal_{channel}.json"
+
+
+def _get_authenticated_service(channel: int = 1):
+    """Return an authenticated YouTube API service object for *channel*."""
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    token_path = _token_path(channel)
 
     creds = None
-    if TOKEN_PATH.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    if token_path.exists():
+        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -36,13 +40,33 @@ def _get_authenticated_service():
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(CLIENT_SECRETS), SCOPES
             )
-            creds = flow.run_local_server(port=0)
+            flow.redirect_uri = "http://localhost"
+            auth_url, _ = flow.authorization_url(
+                prompt="consent", access_type="offline"
+            )
+            print("\n" + "=" * 60, file=sys.stderr)
+            print(f"  [auth] Canal {channel} — passo a passo:", file=sys.stderr)
+            print(f"  1. Abra este link no navegador:", file=sys.stderr)
+            print(f"\n  {auth_url}\n", file=sys.stderr)
+            print(f"  2. Autorize a conta do YouTube.", file=sys.stderr)
+            print(f"  3. O navegador vai dar erro — isso é normal.", file=sys.stderr)
+            print(f"  4. Copie a URL COMPLETA da barra de endereços e cole aqui.", file=sys.stderr)
+            print("=" * 60, file=sys.stderr)
+            redirect_response = input("  Cole a URL completa aqui: ").strip()
+            flow.fetch_token(authorization_response=redirect_response)
+            creds = flow.credentials
 
-        # Save token for next run
-        with open(TOKEN_PATH, "w") as f:
+        with open(token_path, "w") as f:
             f.write(creds.to_json())
+        print(f"  [auth] Token salvo: {token_path}", file=sys.stderr)
 
     return build("youtube", "v3", credentials=creds)
+
+
+def auth_channel(channel: int = 1) -> None:
+    """Run OAuth flow for *channel* and save token. Use with --auth flag."""
+    _get_authenticated_service(channel)
+    print(f"[OK] Canal {channel} autorizado com sucesso.", file=sys.stderr)
 
 
 def upload_video(
@@ -50,6 +74,7 @@ def upload_video(
     titulo: str,
     descricao: str,
     thumb_path: str,
+    channel: int = 1,
 ) -> str:
     """Upload a clip to YouTube and set its thumbnail.
 
@@ -69,7 +94,7 @@ def upload_video(
     if not thumb.exists():
         raise FileNotFoundError(f"Thumbnail não encontrada: {thumb}")
 
-    youtube = _get_authenticated_service()
+    youtube = _get_authenticated_service(channel)
 
     # ── Upload ─────────────────────────────────────────────────
     body = {
