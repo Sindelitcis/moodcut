@@ -5,5 +5,5 @@ __pycache__/
 .DS_Store
 client_secrets.json
 STATUS.md
-
+channels.yaml
 NUL
