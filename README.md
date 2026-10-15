@@ -1,6 +1,6 @@
 # Moodcut
 
-Pipeline automático que transforma VODs longos (lives, podcasts) em clipes prontos para o YouTube. Ele baixa o vídeo, transcreve, segmenta por tópico de conversa, corta com legenda queimada, gera thumbnail e faz upload — tudo de ponta a ponta.
+Pipeline automático que transforma VODs longos (lives, podcasts) em clipes prontos para o YouTube. Ele baixa o vídeo, transcreve, segmenta por tópico de conversa, corta com legenda queimada, gera thumbnail e faz upload, tudo de ponta a ponta.
 
 **Foco atual:** conteúdo falado (just talking / podcast). Gameplay está fora de escopo (ver `STATUS.md`).
 
@@ -10,22 +10,22 @@ Pipeline automático que transforma VODs longos (lives, podcasts) em clipes pron
 
 O pipeline roda em sequência, com cache em cada etapa (etapas já feitas são puladas):
 
-1. **Download** (`yt-dlp`) — baixa o melhor MP4 do VOD (Twitch ou YouTube) em `output/downloads/`.
-2. **Transcrição** (Whisper + CUDA) — gera segmentos `{start, end, text}` em `output/transcriptions/`. Modelo definido no `config.yaml`.
-3. **Chunking** — agrupa os segmentos em blocos de ~3 min, no formato `[HH:MM:SS] texto`, para enviar ao modelo de análise.
+1. **Download** (`yt-dlp`): baixa o melhor MP4 do VOD (Twitch ou YouTube) em `output/downloads/`.
+2. **Transcrição** (Whisper + CUDA): gera segmentos `{start, end, text}` em `output/transcriptions/`. Modelo definido no `config.yaml`.
+3. **Chunking**: agrupa os segmentos em blocos de ~3 min, no formato `[HH:MM:SS] texto`, para enviar ao modelo de análise.
 4. **Análise** (DeepSeek v4-flash, duas passagens):
    - Passagem 1: mapeia os tópicos de conversa (início/fim/assunto), ignorando abertura, encerramento, silêncio, propaganda e patrocínio.
    - Passagem 2: para cada tópico, gera título estilo YouTube, humor (engraçado/triste/raiva/inspirador), descrição e descrição otimizada (`descricao_youtube`).
    - Resultado salvo em `output/analysis/`.
-5. **Corte + legenda** (`ffmpeg`) — corta cada tópico com padding, gera o SRT a partir da transcrição e queima a legenda (re-encode via NVENC). Clipes salvos em `output/{humor}/`.
-6. **Thumbnail** (`Pillow`) — extrai um frame limpo do VOD original (sem legenda), escolhe o de maior variância e sobrepõe o título. Salva ao lado do clipe.
-7. **Upload** (YouTube Data API v3) — sobe o clipe como `unlisted`, define a thumbnail e usa a descrição otimizada.
+5. **Corte + legenda** (`ffmpeg`): corta cada tópico com padding, gera o SRT a partir da transcrição e queima a legenda (re-encode via NVENC). Clipes salvos em `output/{humor}/`.
+6. **Thumbnail** (`Pillow`): extrai um frame limpo do VOD original (sem legenda), escolhe o de maior variância e sobrepõe o título. Salva ao lado do clipe.
+7. **Upload** (YouTube Data API v3): sobe o clipe como `unlisted`, define a thumbnail e usa a descrição otimizada.
 
 ---
 
 ## Requisitos
 
-- **Python 3.12** (no Windows, rodar sempre com `py -3.12` — 3.14 ainda não tem suporte CUDA no torch).
+- **Python 3.12** (no Windows, rodar sempre com `py -3.12`, porque o 3.14 ainda não tem suporte CUDA no torch).
 - **GPU NVIDIA com CUDA** (testado em RTX 4060 8GB).
 - **ffmpeg + ffprobe** no PATH, com suporte a **NVENC** (`h264_nvenc`).
 - **Chave da API do DeepSeek**.
@@ -69,7 +69,7 @@ padding_start: 10         # segundos adicionados antes do início do tópico
 padding_end: 8            # segundos adicionados depois do fim do tópico
 ```
 
-> Nota: com `max_clip_duration: 0` não há limite superior — um tópico longo vira um clipe longo. Um teto de segurança está no roadmap (ver `STATUS.md`).
+> Nota: com `max_clip_duration: 0` não há limite superior: um tópico longo vira um clipe longo. Um teto de segurança está no roadmap (ver `STATUS.md`).
 
 ### `.env` (raiz do projeto)
 
@@ -84,7 +84,7 @@ DEEPSEEK_API_KEY=sua_chave_aqui
 
 ### Fontes da thumbnail
 
-A v1 procura fontes arredondadas (Nunito-Bold, Baloo2-Bold, Comfortaa-Bold) e cai em DejaVuSans se não achar. Instale as desejadas em `C:/Windows/Fonts/` (a direção da v2 muda para fontes condensadas pesadas — ver `STATUS.md`).
+A v1 procura fontes arredondadas (Nunito-Bold, Baloo2-Bold, Comfortaa-Bold) e cai em DejaVuSans se não achar. Instale as desejadas em `C:/Windows/Fonts/` (a direção da v2 muda para fontes condensadas pesadas; ver `STATUS.md`).
 
 ---
 
